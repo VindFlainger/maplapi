@@ -1,0 +1,1 @@
+module.exports.successModified = {success: true, message: 'object was successfully modified'}
