@@ -3,45 +3,81 @@ const User = require("../db/User");
 const {successModified} = require("../utils/statuses");
 const {body} = require("express-validator");
 const {validationHandler} = require("../utils/customValidation");
+const {validateFieldIsRequired, authNotStrongPassword} = require("../utils/errors");
 
 const router = Router()
 
 router.post('/customerRegistration',
+    body(['login', 'password', 'name', 'gender'], validateFieldIsRequired),
     body('login')
         .isEmail(),
     body('password')
-        .isStrongPassword({minNumbers: 0})
+        .isStrongPassword({minNumbers: 0}).withMessage(authNotStrongPassword)
     ,
     body('name')
-        .custom(v => /^[a-zа-я]+$/.test(v))
+        .isLength({min: 3})
+        .custom(v => /^[a-zа-я]+$/i.test(v))
+    ,
+    body('gender')
+        .isIn(['male', 'female'])
     ,
     validationHandler,
     async (req, res, next) => {
         try {
-            await User.registration(req.body.login, req.body.password, req.body.role)
+            await User.customerRegistration(req.body.login, req.body.password, req.body.name, req.body.gender)
             res.json(successModified)
         } catch (err) {
             next(err)
         }
-    })
+    }
+)
 
-router.post('/customerLogin',
-    body(['login', 'password', 'device', 'ip'], )
+router.post('/login',
+    body(['login', 'password', 'device', 'ip'], validateFieldIsRequired),
     body('login')
         .isEmail()
     ,
     body('password')
-
-
+        .isLength({max: 50})
     ,
-    (req, res, next) => {
+    body('device')
+        .isLength({max: 200})
+    ,
+    body('id')
+        .isIP()
+    ,
+    async (req, res, next) => {
         try {
-            User.generateRefreshToken()
+            const keys = await User.generateRefreshToken(req.body.login, req.body.password, req.body.device, req.body.ip)
+            res.cookie('access-token', keys.accessToken,
+                {
+                    expires: new Date(Date.now() + Number.parseInt(process.env.ACCESS_TOKEN_EXPIRES)),
+                    httpOnly: true,
+                    // TODO: production + secure: true
+                })
+            res.json(keys)
         } catch (err) {
             next(err)
         }
+    }
+)
 
-
+router.post('/refresh',
+    body(['refreshToken', 'device', 'ip'], validateFieldIsRequired),
+    validationHandler,
+    async (req, res, next) => {
+        try {
+            const keys = await User.refreshToken(req.body.refreshToken, req.body.device, req.body.ip)
+            res.cookie('access-token', keys.accessToken,
+                {
+                    expires: new Date(Date.now() + Number.parseInt(process.env.ACCESS_TOKEN_EXPIRES)),
+                    httpOnly: true,
+                    // TODO: production + secure: true
+                })
+            res.json(keys)
+        } catch (err) {
+            next(err)
+        }
     }
 )
 

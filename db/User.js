@@ -1,6 +1,15 @@
 const db = require('./index')
-const {authUserAlreadyExists, authUserNotExists, authIncorrectPassword} = require("../utils/errors");
+const sizedImage = require('./SizedImage')
+
+const {
+    authUserAlreadyExists,
+    authUserNotExists,
+    authIncorrectPassword,
+    authIncorrectRefreshToken
+} = require("../utils/errors");
 const bcrypt = require("bcrypt");
+const crypto = require("crypto")
+const jsonwebtoken = require("jsonwebtoken");
 
 const sessionSchema = new db.Schema({
         fingerprint: {
@@ -31,49 +40,52 @@ const sessionSchema = new db.Schema({
     })
 
 const userSchema = new db.Schema({
-    auth: {
-        login: {
-            type: String,
-            required: true
-        },
-        password: {
-            type: String,
-            required: true
-        },
-        sessions: [sessionSchema]
-    },
-    role: {
-        type: String,
-        required: true,
-        enum: ['vendor', 'customer', 'admin']
-    },
-    customerInfo: {
-        type: {
-            name: {
+        auth: {
+            login: {
                 type: String,
                 required: true
             },
-            gender: {
+            password: {
                 type: String,
-                required: true,
-                enum: ['male', 'female']
+                required: true
             },
-            localization: {
-                language: {
-                    type: String,
-                    default: 'en'
-                },
-                location: {
-                    type: String,
-                    default: 'Minsk'
-                }
-            }
+            sessions: [sessionSchema]
         },
-    },
-    vendorInfo: {
-        type: {},
+        role: {
+            type: String,
+            required: true,
+            enum: ['vendor', 'customer', 'admin']
+        },
+        customerInfo: {
+            type: {
+                name: {
+                    type: String,
+                    required: true
+                },
+                gender: {
+                    type: String,
+                    required: true,
+                    enum: ['male', 'female']
+                },
+                avatar: {
+                    type: [sizedImage],
+                    default: undefined
+                },
+                localization: {
+                    language: {
+                        type: String,
+                        default: 'en'
+                    },
+                    location: {
+                        type: String,
+                        default: 'Minsk'
+                    }
+                }
+            },
+            _id: false
+        }
     }
-})
+)
 
 userSchema.statics.checkUserExists = function (login) {
     return this.exists({'auth.login': login})
@@ -89,48 +101,88 @@ userSchema.statics.registration = async function (login, password, role) {
         role,
         auth: {
             login,
-            password: hash,
+            password: hash
         }
     })
 }
 
-userSchema.statics.generateRefreshToken = async function (login, password, device, ip) {
-    const user = await this.findOne({'auth.login': 'login'})
-    if (!user) throw authUserNotExists
+userSchema.statics.customerRegistration = async function (login, password, name, gender) {
+    const isUserExists = await this.checkUserExists(login)
+    if (isUserExists) throw authUserAlreadyExists
 
-    const isMatched = bcrypt.compareSync(password, user.auth.password)
-    if (!isMatched) throw authIncorrectPassword
+    const hash = bcrypt.hashSync(password, 5)
 
+    return await this.create({
+        role: 'customer',
+        auth: {
+            login,
+            password: hash
+        },
+        customerInfo: {
+            name,
+            gender
+        }
+    })
+}
+
+
+userSchema.statics.$getNewKeys = async function (login, id, device, ip, role) {
     await this.updateOne(
         {
             'auth.login': login
         },
         {
-            'auth.login': {
-                $pull: {
-                    'fingerprint': device
+            $pull: {
+                'auth.sessions': {
+                    fingerprint: device
                 }
             }
         }
     )
 
-    const refreshToken = bcrypt.genSaltSync()
+    const refreshToken = crypto.randomBytes(32).toString('hex')
 
     await this.updateOne(
         {
             'auth.login': login
         },
         {
-            'auth.login': {
-                $push: {
+            $push: {
+                'auth.sessions': {
                     fingerprint: device,
                     ip,
-                    expiresIn: new Date(Date.now() + 1000 * 60 * 15),
+                    expiresIn: new Date(Date.now() + Number.parseInt(process.env.REFRESH_TOKEN_EXPIRES)),
                     refreshToken
                 }
             }
         }
     )
+
+    const accessToken = jsonwebtoken.sign({
+        role,
+        login,
+        id
+    }, process.env.SECRET, {expiresIn: Number.parseInt(process.env.ACCESS_TOKEN_EXPIRES)})
+
+    return {refreshToken, accessToken, expiresIn: Number.parseInt(process.env.ACCESS_TOKEN_EXPIRES)}
 }
+
+userSchema.statics.generateRefreshToken = async function (login, password, device, ip) {
+    const user = await this.findOne({'auth.login': login})
+    if (!user) throw authUserNotExists
+
+    const isMatched = bcrypt.compareSync(password, user.auth.password)
+    if (!isMatched) throw authIncorrectPassword
+
+    return await this.$getNewKeys(login, user._id, device, ip, user.role)
+}
+
+userSchema.statics.refreshToken = async function (refreshToken, device, ip) {
+    const user = await this.findOne({'auth.sessions.refreshToken': refreshToken})
+    if (!user) throw authIncorrectRefreshToken
+
+    return await this.$getNewKeys(user.auth.login, user._id, device, ip, user.role)
+}
+
 
 module.exports = db.model('user', userSchema, 'users')

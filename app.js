@@ -4,19 +4,22 @@ const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
 const auth = require('./routes/auth');
+const customer = require('./routes/customer');
 const RequestError = require("./utils/RequestError");
+const {generalPathNotFound} = require("./utils/errors");
 
 const app = express();
 
 app.use(express.json());
 app.use(express.urlencoded({extended: false}));
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'static')));
+app.use('/static', express.static(path.join('static')));
 
 app.use('/auth', auth);
+app.use('/customer', customer);
 
 app.use(function (req, res, next) {
-
+    next(generalPathNotFound)
 });
 
 // error handler
