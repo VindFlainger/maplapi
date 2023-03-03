@@ -10,12 +10,14 @@ const router = Router()
 router.post('/customerRegistration',
     body(['login', 'password', 'name', 'gender'], validateFieldIsRequired),
     body('login')
-        .isEmail(),
+        .isEmail()
+    ,
     body('password')
         .isStrongPassword({minNumbers: 0}).withMessage(authNotStrongPassword)
     ,
     body('name')
         .isLength({min: 3})
+        .isString()
         .custom(v => /^[a-zа-я]+$/i.test(v))
     ,
     body('gender')
@@ -39,13 +41,16 @@ router.post('/login',
     ,
     body('password')
         .isLength({max: 50})
+        .isString()
     ,
     body('device')
         .isLength({max: 200})
+        .isString()
     ,
-    body('id')
+    body('ip')
         .isIP()
     ,
+    validationHandler,
     async (req, res, next) => {
         try {
             const keys = await User.generateRefreshToken(req.body.login, req.body.password, req.body.device, req.body.ip)
@@ -64,6 +69,17 @@ router.post('/login',
 
 router.post('/refresh',
     body(['refreshToken', 'device', 'ip'], validateFieldIsRequired),
+    body('refreshToken')
+        .isLength({max: 1000})
+        .isString()
+    ,
+    body('device')
+        .isLength({max: 200})
+        .isString()
+    ,
+    body('ip')
+        .isIP()
+    ,
     validationHandler,
     async (req, res, next) => {
         try {

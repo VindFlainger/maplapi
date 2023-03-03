@@ -16,3 +16,6 @@ module.exports.authAccessTokenExpires = new RequestError(208, 'received access t
 module.exports.authNotCustomerSession = new RequestError(209, "received access token is not customer's", 401)
 
 
+module.exports.commerceUnknownProductId = new RequestError(601, "product with such id not exists", 404)
+
+

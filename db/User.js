@@ -1,5 +1,5 @@
 const db = require('./index')
-const sizedImage = require('./SizedImage')
+const sizedImage = require('./Schemas/sizedImage')
 
 const {
     authUserAlreadyExists,
