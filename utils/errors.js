@@ -1,6 +1,7 @@
 const RequestError = require("./RequestError");
 
 module.exports.generalPathNotFound = new RequestError(1, 'unknown path', 404)
+module.exports.generalIllegalInteraction = new RequestError(2, 'illegal interaction with protected objects not owned by current user', 401)
 
 module.exports.validateFieldIsRequired = new RequestError(101, 'field is required', 400)
 
@@ -14,5 +15,11 @@ module.exports.authRefreshTokenExpires = new RequestError(206, 'received refresh
 module.exports.authIncorrectAccessToken = new RequestError(207, 'unregistered access token received', 401)
 module.exports.authAccessTokenExpires = new RequestError(208, 'received access token expires', 401)
 module.exports.authNotCustomerSession = new RequestError(209, "received access token is not customer's", 401)
+
+module.exports.interactingNoProduct = new RequestError(301, "product with such doesn't exist", 404)
+module.exports.interactingNoReview = new RequestError(302, "review with such doesn't exist", 404)
+
+
+module.exports.commerceUnknownProductId = new RequestError(601, "product with such id not exists", 404)
 
 

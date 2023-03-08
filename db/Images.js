@@ -1,5 +1,5 @@
 const db = require('./index')
-const SizedImage = require('./SizedImage')
+const SizedImage = require('./Schemas/sizedImage')
 
 
 const schema = new db.Schema({

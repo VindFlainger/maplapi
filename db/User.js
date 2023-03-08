@@ -1,5 +1,5 @@
 const db = require('./index')
-const sizedImage = require('./SizedImage')
+const sizedImage = require('./Schemas/sizedImage')
 
 const {
     authUserAlreadyExists,
@@ -74,11 +74,17 @@ const userSchema = new db.Schema({
                 localization: {
                     language: {
                         type: String,
-                        default: 'en'
+                        default: 'en',
+                        enum: ['en', 'ru', 'by']
                     },
                     location: {
                         type: String,
-                        default: 'Minsk'
+                        default: 'minsk'
+                    },
+                    currency: {
+                        type: String,
+                        default: 'byn',
+                        enum: ['byn', 'eur', 'usd']
                     }
                 }
             },
@@ -182,6 +188,19 @@ userSchema.statics.refreshToken = async function (refreshToken, device, ip) {
     if (!user) throw authIncorrectRefreshToken
 
     return await this.$getNewKeys(user.auth.login, user._id, device, ip, user.role)
+}
+
+userSchema.statics.getCustomerShortInfo = async function (userId) {
+    return await
+        this.findById(userId)
+            .select({
+                    'auth.login': 1,
+                    'customerInfo.name': 1,
+                    'customerInfo.gender': 1,
+                    'customerInfo.localization': 1,
+                    'customerInfo.avatar': 1,
+                }
+            )
 }
 
 

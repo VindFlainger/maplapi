@@ -1,6 +1,6 @@
 const mongoose = require('mongoose')
 
-mongoose.connect(process.env.DB_CONNECT + process.env.DB, {
+mongoose.connect('mongodb://LAPTOP-HHIAGJDC:27017,LAPTOP-HHIAGJDC:27018,LAPTOP-HHIAGJDC:27019/mapl?replicaSet=rs', {
     useNewUrlParser: true,
     useUnifiedTopology: true
 })

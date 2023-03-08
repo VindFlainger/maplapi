@@ -10,12 +10,14 @@ const router = Router()
 router.post('/customerRegistration',
     body(['login', 'password', 'name', 'gender'], validateFieldIsRequired),
     body('login')
-        .isEmail(),
+        .isEmail()
+    ,
     body('password')
         .isStrongPassword({minNumbers: 0}).withMessage(authNotStrongPassword)
     ,
     body('name')
         .isLength({min: 3})
+        .isString()
         .custom(v => /^[a-zа-я]+$/i.test(v))
     ,
     body('gender')
@@ -39,16 +41,16 @@ router.post('/login',
     ,
     body('password')
         .isLength({max: 50})
+        .isString()
     ,
     body('device')
         .isLength({max: 200})
+        .isString()
     ,
-    body('id')
-        .isIP()
-    ,
+    validationHandler,
     async (req, res, next) => {
         try {
-            const keys = await User.generateRefreshToken(req.body.login, req.body.password, req.body.device, req.body.ip)
+            const keys = await User.generateRefreshToken(req.body.login, req.body.password, req.body.device, req.ip)
             res.cookie('access-token', keys.accessToken,
                 {
                     expires: new Date(Date.now() + Number.parseInt(process.env.ACCESS_TOKEN_EXPIRES)),
@@ -63,11 +65,19 @@ router.post('/login',
 )
 
 router.post('/refresh',
-    body(['refreshToken', 'device', 'ip'], validateFieldIsRequired),
+    body(['refreshToken', 'device'], validateFieldIsRequired),
+    body('refreshToken')
+        .isLength({max: 1000})
+        .isString()
+    ,
+    body('device')
+        .isLength({max: 200})
+        .isString()
+    ,
     validationHandler,
     async (req, res, next) => {
         try {
-            const keys = await User.refreshToken(req.body.refreshToken, req.body.device, req.body.ip)
+            const keys = await User.refreshToken(req.body.refreshToken, req.body.device, req.ip)
             res.cookie('access-token', keys.accessToken,
                 {
                     expires: new Date(Date.now() + Number.parseInt(process.env.ACCESS_TOKEN_EXPIRES)),
