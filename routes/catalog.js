@@ -1,6 +1,7 @@
 const {Router} = require('express')
 const Category = require('../db/Category')
 const Product = require('../db/Product')
+const Review = require('../db/Review')
 const {query, body} = require("express-validator");
 const {validateFieldIsRequired} = require("../utils/errors");
 const {validationHandler} = require("../utils/customValidation");
@@ -104,8 +105,8 @@ router.get('/getProductInfo',
     validationHandler,
     async (req, res, next) => {
         try {
-            const categories = await Product.getProductInfo(req.query.productId)
-            res.json(categories)
+            const [productInfo, reviews] = await Promise.all([Product.getProductInfo(req.query.productId), Review.getProductReviews(req.query.productId)])
+            res.json({...productInfo.toObject(), reviews})
         } catch (err) {
             next(err)
         }
@@ -120,5 +121,4 @@ router.get('/getProductInfo',
     await session.abortTransaction()
     await session.endSession()
 })*/
-
 module.exports = router

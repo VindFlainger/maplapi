@@ -219,13 +219,6 @@ schema.statics.getProducts =
             ))
         }
 
-
-        console.log({
-            ...categories,
-            ...Object.keys(skus.$elemMatch).length ? {skus: {...skus}} : {},
-            ...Object.keys($details).length ? {details: {...$details}} : {}
-        })
-
         return this.find({
             ...categories,
             ...Object.keys(skus.$elemMatch).length ? {skus: {...skus}} : {},
@@ -233,8 +226,8 @@ schema.statics.getProducts =
         })
     }
 
-schema.statics.getProductInfo = async function (id) {
-    const productInfo = await this.findById(id)
+schema.statics.getProductInfo = async function (productId) {
+    const productInfo = await this.findById(productId)
     if (!productInfo) throw commerceUnknownProductId
     return productInfo
 }
