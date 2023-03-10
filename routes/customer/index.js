@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const {authAccessTokenExpires, authIncorrectAccessToken, authNotCustomerSession} = require("../../utils/errors");
 const account = require('./account')
 const reviews = require('./reviews')
+const order = require('./order')
 
 const router = Router()
 
@@ -26,6 +27,7 @@ router.use((req, res, next) => {
 
 router.use('/account', account)
 router.use('/reviews', reviews)
+router.use('/order', order)
 
 
 module.exports = router

@@ -105,13 +105,38 @@ router.get('/getProductInfo',
     validationHandler,
     async (req, res, next) => {
         try {
-            const [productInfo, reviews] = await Promise.all([Product.getProductInfo(req.query.productId), Review.getProductReviews(req.query.productId)])
+            const [productInfo, reviews] = await
+                Promise.all(
+                    [
+                        Product.getProductInfo(req.query.productId),
+                        Review.getProductReviews(req.query.productId)
+                    ]
+                )
             res.json({...productInfo.toObject(), reviews})
         } catch (err) {
             next(err)
         }
     }
 )
+
+router.get('/getReviews',
+    query(['productId', validateFieldIsRequired]),
+    query('productId')
+        .isMongoId()
+    ,
+    query('ownerId')
+        .if(query('ownerId').isMongoId())
+        .if(query('ownerId').isEmpty())
+    ,
+    validationHandler,
+    async (req, res, next) => {
+        try {
+            const reviews = await Review.getProductReviews(req.query.productId, req.query.ownerId)
+            res.json(reviews)
+        } catch (err) {
+            next(err)
+        }
+    })
 
 
 /*router.get('/test', async (req, res, next) => {

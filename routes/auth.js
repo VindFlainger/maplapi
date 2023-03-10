@@ -57,6 +57,7 @@ router.post('/login',
                     httpOnly: true,
                     // TODO: production + secure: true
                 })
+            console.log(keys)
             res.json(keys)
         } catch (err) {
             next(err)

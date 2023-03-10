@@ -60,7 +60,8 @@ const userSchema = new db.Schema({
             type: {
                 name: {
                     type: String,
-                    required: true
+                    required: true,
+                    maxLength: 18
                 },
                 gender: {
                     type: String,
@@ -86,9 +87,41 @@ const userSchema = new db.Schema({
                         default: 'byn',
                         enum: ['byn', 'eur', 'usd']
                     }
+                },
+                shipping: {
+                    location: {
+                        type: String,
+                        required: true
+                    },
+                    city: {
+                        type: String,
+                        required: true,
+                        maxLength: 30
+                    },
+                    street: {
+                        type: String,
+                        required: true,
+                        maxLength: 30
+                    },
+                    house: {
+                        type: String,
+                        required: true,
+                        maxLength: 30
+                    },
+                    notes: {
+                        type: String,
+                        required: true,
+                        maxLength: 200
+                    }
                 }
             },
             _id: false
+        }
+    },
+    {
+        timestamps: {
+            createdAt: true,
+            updatedAt: false
         }
     }
 )
@@ -170,7 +203,7 @@ userSchema.statics.$getNewKeys = async function (login, id, device, ip, role) {
         id
     }, process.env.SECRET, {expiresIn: Number.parseInt(process.env.ACCESS_TOKEN_EXPIRES)})
 
-    return {refreshToken, accessToken, expiresIn: Number.parseInt(process.env.ACCESS_TOKEN_EXPIRES)}
+    return {id, refreshToken, accessToken, expiresIn: Number.parseInt(process.env.ACCESS_TOKEN_EXPIRES)}
 }
 
 userSchema.statics.generateRefreshToken = async function (login, password, device, ip) {
@@ -191,16 +224,23 @@ userSchema.statics.refreshToken = async function (refreshToken, device, ip) {
 }
 
 userSchema.statics.getCustomerShortInfo = async function (userId) {
-    return await
+    const info = await
         this.findById(userId)
             .select({
                     'auth.login': 1,
                     'customerInfo.name': 1,
                     'customerInfo.gender': 1,
                     'customerInfo.localization': 1,
-                    'customerInfo.avatar': 1,
                 }
             )
+    if (!info) throw authUserNotExists
+
+    return {
+        login: info.auth.login,
+        name: info.customerInfo.name,
+        gender: info.customerInfo.gender,
+        localization: info.customerInfo.localization,
+    }
 }
 
 
