@@ -14,10 +14,12 @@ const app = express();
 app.use((req, res, next) => {
     res.header("access-control-allow-credentials", "true");
     res.header('access-control-allow-methods', '*');
-    res.header("Access-Control-Allow-Origin", "http://192.168.100.7:8080");
+    res.header("Access-Control-Allow-Origin", process.env.ORIGIN);
     res.header("Referrer-Policy", "unsafe-url");
+    console.log(req.ip)
     next();
 });
+
 
 app.use(express.json());
 app.use(express.urlencoded({extended: false}));
@@ -46,6 +48,7 @@ app.use(function (err, req, res, next) {
         })
     }
 });
+
 
 
 app.listen(process.env.PORT)

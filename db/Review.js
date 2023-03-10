@@ -30,12 +30,14 @@ const schema = new db.Schema({
         maxLength: 1000
     }
 }, {
+    id: true,
     timestamps: {
         createdAt: true,
         updatedAt: true
     },
     toJSON: {
-        versionKey: false
+        versionKey: false,
+        virtuals: true
     }
 })
 
@@ -65,16 +67,59 @@ schema.statics.delReview = async function (reviewId, ownerId) {
     return await this.deleteOne({_id: reviewId})
 }
 
-schema.statics.getProductReviews = async function (productId) {
-    return await this
-        .find({product: productId})
+schema.statics.getProductReviews = async function (productId, ownerId) {
+    const [others, my] = await Promise.all(
+        [
+            this
+                .find(
+                    {
+                        product: productId,
+                        ...ownerId ? {owner: {$ne: ownerId}} : {}
+                    }
+                )
+                .populate({
+                    path: 'owner',
+                    transform: doc => {
+                        return {
+                            id: doc._id,
+                            name: doc.customerInfo.name
+                        }
+                    }
+                })
+            ,
+            (
+                async () => {
+                    if (!ownerId) return
+                    return await this
+                        .findOne(
+                            {
+                                product: productId,
+                                owner: ownerId
+                            }
+                        )
+                        .populate({
+                            path: 'owner',
+                            transform: doc => {
+                                return {
+                                    id: doc._id,
+                                    name: doc.customerInfo.name
+                                }
+                            }
+                        })
+                })()
+        ]
+    )
+    return {others, my}
+}
+
+schema.statics.getUserReviews = async function (ownerId) {
+    return await this.find({
+        owner: ownerId
+    })
         .populate({
-            path: 'owner',
+            path: 'product',
             transform: doc => {
-                return {
-                    id: doc._id,
-                    name: doc.customerInfo.name
-                }
+                return doc.images
             }
         })
 }
