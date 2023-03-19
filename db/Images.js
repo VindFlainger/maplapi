@@ -13,7 +13,7 @@ const schema = new db.Schema({
         virtuals: {
             originalImageUrl: {
                 get() {
-                    return `${process.env.HOST}/static/images/${this.originalImage}`
+                    return process.env.IMAGES_BASE + this.originalImage
                 }
             }
         },

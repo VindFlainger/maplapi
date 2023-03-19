@@ -73,7 +73,7 @@ router.post('/getProducts',
     validationHandler,
     async (req, res, next) => {
         try {
-            const products = await Product.getProducts(
+            const products = await Product.getSkus(
                 req.body.offset,
                 req.body.limit,
                 {
@@ -128,15 +128,27 @@ router.get('/getReviews',
         .if(query('ownerId').isMongoId())
         .if(query('ownerId').isEmpty())
     ,
+    query('limit')
+        .optional()
+        .isInt({min: 0})
+        .toInt()
+    ,
+    query('offset')
+        .optional()
+        .isInt({min: 0})
+        .toInt()
+    ,
     validationHandler,
     async (req, res, next) => {
         try {
-            const reviews = await Review.getProductReviews(req.query.productId, req.query.ownerId)
+            const reviews = await Review.getProductReviews(req.query.productId, req.query.ownerId, req.query.offset, req.query.limit)
             res.json(reviews)
         } catch (err) {
             next(err)
         }
-    })
+    }
+)
+
 
 
 /*router.get('/test', async (req, res, next) => {

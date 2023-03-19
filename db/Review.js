@@ -67,8 +67,8 @@ schema.statics.delReview = async function (reviewId, ownerId) {
     return await this.deleteOne({_id: reviewId})
 }
 
-schema.statics.getProductReviews = async function (productId, ownerId) {
-    const [others, my] = await Promise.all(
+schema.statics.getProductReviews = async function (productId, ownerId, offset = 0, limit = 30) {
+    const [others, totalCount, my] = await Promise.all(
         [
             this
                 .find(
@@ -77,6 +77,8 @@ schema.statics.getProductReviews = async function (productId, ownerId) {
                         ...ownerId ? {owner: {$ne: ownerId}} : {}
                     }
                 )
+                .skip(offset)
+                .limit(limit)
                 .populate({
                     path: 'owner',
                     transform: doc => {
@@ -86,6 +88,11 @@ schema.statics.getProductReviews = async function (productId, ownerId) {
                         }
                     }
                 })
+            ,
+            this.count({
+                product: productId,
+                ...ownerId ? {owner: {$ne: ownerId}} : {}
+            })
             ,
             (
                 async () => {
@@ -109,19 +116,49 @@ schema.statics.getProductReviews = async function (productId, ownerId) {
                 })()
         ]
     )
-    return {others, my}
+    return {
+        others,
+        totalCount,
+        limit,
+        offset,
+        nextOffset: offset + others.length,
+        my
+    }
 }
 
-schema.statics.getUserReviews = async function (ownerId) {
-    return await this.find({
-        owner: ownerId
-    })
-        .populate({
-            path: 'product',
-            transform: doc => {
-                return doc.images
-            }
-        })
+schema.statics.getUserReviews = async function (ownerId, offset = 0, limit = 30) {
+    const [reviews, totalCount] = await Promise.all(
+        [
+            this.find({
+                owner: ownerId
+            })
+                .skip(offset)
+                .limit(limit)
+                .populate({
+                        path: 'product',
+                        transform: doc => {
+                            return {
+                                id: doc.id,
+                                name: doc.name,
+                                previewImage: doc.skus[0]?.images?.[0]
+                            }
+                        }
+                    }
+                )
+            ,
+            this.count({
+                owner: ownerId
+            })
+        ]
+    )
+
+    return {
+        reviews,
+        offset,
+        limit,
+        totalCount,
+        nextOffset: offset + reviews.length
+    }
 }
 
 module.exports = db.model('review', schema, 'reviews')

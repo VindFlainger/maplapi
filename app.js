@@ -6,6 +6,7 @@ require('dotenv').config();
 const auth = require('./routes/auth');
 const customer = require('./routes/customer');
 const catalog = require('./routes/catalog');
+const data = require('./routes/data');
 const RequestError = require("./utils/RequestError");
 const {generalPathNotFound} = require("./utils/errors");
 
@@ -16,7 +17,6 @@ app.use((req, res, next) => {
     res.header('access-control-allow-methods', '*');
     res.header("Access-Control-Allow-Origin", process.env.ORIGIN);
     res.header("Referrer-Policy", "unsafe-url");
-    console.log(req.ip)
     next();
 });
 
@@ -29,6 +29,7 @@ app.use('/static', express.static(path.join('static')));
 app.use('/auth', auth);
 app.use('/customer', customer);
 app.use('/catalog', catalog);
+app.use('/data', data);
 
 app.use(function (req, res, next) {
     next(generalPathNotFound)

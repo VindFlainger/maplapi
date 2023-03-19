@@ -2,6 +2,7 @@ const db = require('./index')
 const sizedImage = require('./Schemas/sizedImage')
 const {commerceUnknownProductId} = require("../utils/errors");
 
+
 const sizingSchema = new db.Schema({
         size: {
             type: String,
@@ -158,7 +159,7 @@ const schema = new db.Schema({
     }
 )
 
-schema.statics.getProducts =
+schema.statics.getSkus =
     async function (
         offset,
         limit,
@@ -174,36 +175,57 @@ schema.statics.getProducts =
             details = []
         }
     ) {
-        const categories = {target}
-        const skus = {$elemMatch: {}}
+        const match = {}
         let $details = {}
-        if (category_1) categories.category_1 = category_1
-        if (category_2) categories.category_2 = category_2
-        if (category_3) categories.category_3 = category_3
+        const $color = {}
+        const $minPrice = {}
+        const $maxPrice = {}
+        const $sizes = {}
+        if (target) match.target = new RegExp(`^${target}$`, 'i')
+        if (category_1) match.category_1 = new RegExp(`^${category_1}$`, 'i')
+        if (category_2) match.category_2 = new RegExp(`^${category_2}$`, 'i')
+        if (category_3) match.category_3 = new RegExp(`^${category_3}$`, 'i')
+
+        if (minPrice) {
+            $minPrice.$or =
+                [
+                    {
+                        "pricing.price": {
+                            $gte: minPrice,
+                        },
+                    },
+                    {
+                        "pricing.sale": {
+                            $gte: minPrice,
+                        },
+                    },
+                ]
+        }
+
+        if (maxPrice) {
+            $maxPrice.$or =
+                [
+                    {
+                        "pricing.price": {
+                            $lte: maxPrice,
+                        },
+                    },
+                    {
+                        "pricing.sale": {
+                            $lte: maxPrice,
+                        },
+                    },
+                ]
+        }
 
         if (color) {
-            skus.$elemMatch.color = color
+            $color.color = color
         }
 
-        if (minPrice || maxPrice) {
-            skus.$elemMatch["pricing.price"] = {
-                ...minPrice ? {$gte: minPrice} : {},
-                ...maxPrice ? {$lte: maxPrice} : {}
-            }
+        if (sizes.length) {
+            $sizes.size = {$in: sizes}
         }
 
-        if (sizes && sizes.length) {
-            skus.$elemMatch.sizing = {
-                $elemMatch: {
-                    size: {
-                        $in: sizes
-                    },
-                    quantity: {
-                        $gt: 0
-                    }
-                }
-            }
-        }
 
         if (details && details.length) {
             $details = {}
@@ -219,17 +241,124 @@ schema.statics.getProducts =
             ))
         }
 
-        return this.find({
-            ...categories,
-            ...Object.keys(skus.$elemMatch).length ? {skus: {...skus}} : {},
-            ...Object.keys($details).length ? {details: {...$details}} : {}
-        })
+        return this.aggregate([
+                {
+                    $match: {
+                        ...match
+                    },
+                },
+                {
+                    $unwind: {
+                        path: "$skus",
+                    },
+                },
+                {
+                    $set: {
+                        color: "$skus.color",
+                        images: "$skus.images",
+                        sizing: "$skus.sizing",
+                        pricing: "$skus.pricing",
+                        skuId: '$skus._id',
+                        productId: '$_id'
+                    },
+                },
+                {
+                    $set: {
+                        sizing: {
+                            $map: {
+                                input: "$sizing",
+                                as: "size",
+                                in: {
+                                    size: "$$size.size",
+                                    quantity: {
+                                        $subtract: [
+                                            "$$size.quantity",
+                                            {
+                                                $size: "$$size.orders",
+                                            },
+                                        ],
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+                {
+                    $unset: ["skus", "_id"],
+                },
+                {
+                    $match: {
+                        ...$color,
+                        ...$minPrice,
+                        ...$maxPrice,
+                        sizing: {
+                            $elemMatch: {
+                                ...$sizes,
+                                quantity: {
+                                    $gt: 0,
+                                },
+                            },
+                        },
+                        details: {
+                            ...$details
+                        },
+                    },
+                },
+            ]
+        )
     }
 
 schema.statics.getProductInfo = async function (productId) {
     const productInfo = await this.findById(productId)
     if (!productInfo) throw commerceUnknownProductId
     return productInfo
+}
+
+schema.statics.populateSkus = async function (skus) {
+    return   await this.aggregate(
+        [
+            {
+                $match: {
+                    "skus._id": {
+                        $in: skus
+                    },
+                },
+            },
+            {
+                $unwind: {
+                    path: "$skus",
+                },
+            },
+            {
+                $match: {
+                    "skus._id": {
+                        $in: skus
+                    },
+                },
+            },
+            {
+                $set: {
+                    color: "$skus.color",
+                    image: {
+                        $map: {
+                            input: {$arrayElemAt: ["$skus.images", 0]},
+                            as: 'img',
+                            in: {
+                                size: '$$img.size',
+                                url: {$concat: [process.env.IMAGES_BASE, "$$img.image"]}
+                            }
+                        }
+                    },
+                    pricing: "$skus.pricing",
+                    skuId: "$skus._id",
+                    productId: "$_id",
+                },
+            },
+            {
+                $unset: ["_id", "skus", "features", "tags", "details"],
+            },
+        ]
+    )
 }
 
 

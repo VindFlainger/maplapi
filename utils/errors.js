@@ -16,8 +16,15 @@ module.exports.authIncorrectAccessToken = new RequestError(207, 'unregistered ac
 module.exports.authAccessTokenExpires = new RequestError(208, 'received access token expires', 401)
 module.exports.authNotCustomerSession = new RequestError(209, "received access token is not customer's", 401)
 
-module.exports.interactingNoProduct = new RequestError(301, "product with such doesn't exist", 404)
+module.exports.interactingNoProduct = new RequestError(301, "product with such id doesn't exist", 404)
 module.exports.interactingNoReview = new RequestError(302, "review with such doesn't exist", 404)
+module.exports.interactingNoLocation = new RequestError(303, "location doesn't exist", 404)
+module.exports.interactingNoSku = new RequestError(304, "sku with such id doesn't exist", 404)
+module.exports.interactingNoSkuInWishlist = new RequestError(305, "sku with such id doesn't exist in the wishlist", 400)
+module.exports.interactingSkuAlreadyInWishlist = new RequestError(306, "sku with a given id already exists", 400)
+module.exports.interactingDefaultMethodExists = new RequestError(307, "default payment method is already exists", 400)
+module.exports.interactingToManyMethods = new RequestError(308, "exceeded the maximum number of payment methods", 400)
+module.exports.interactionNoPaymentMethod = new RequestError(309, "payment method with such id doesn't exist", 400)
 
 
 module.exports.commerceUnknownProductId = new RequestError(601, "product with such id not exists", 404)

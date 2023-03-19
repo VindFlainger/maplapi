@@ -5,11 +5,12 @@ const {
     authUserAlreadyExists,
     authUserNotExists,
     authIncorrectPassword,
-    authIncorrectRefreshToken
+    authIncorrectRefreshToken, interactingNoSkuInWishlist, interactingSkuAlreadyInWishlist,
 } = require("../utils/errors");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto")
 const jsonwebtoken = require("jsonwebtoken");
+const mongoose = require("mongoose");
 
 const sessionSchema = new db.Schema({
         fingerprint: {
@@ -88,32 +89,57 @@ const userSchema = new db.Schema({
                         enum: ['byn', 'eur', 'usd']
                     }
                 },
-                shipping: {
-                    location: {
-                        type: String,
-                        required: true
-                    },
-                    city: {
-                        type: String,
-                        required: true,
-                        maxLength: 30
-                    },
-                    street: {
-                        type: String,
-                        required: true,
-                        maxLength: 30
-                    },
-                    house: {
-                        type: String,
-                        required: true,
-                        maxLength: 30
-                    },
-                    notes: {
-                        type: String,
-                        required: true,
-                        maxLength: 200
+                wishlist: [
+                    {
+                        type: db.Schema.Types.ObjectId
                     }
-                }
+                ],
+                shipping: {
+                    _id: false,
+                    type: {
+                        location: {
+                            type: String,
+                            required: true,
+                            maxLength: 30
+                        },
+                        city: {
+                            type: String,
+                            required: true,
+                            maxLength: 30
+                        },
+                        street: {
+                            type: String,
+                            required: true,
+                            maxLength: 30
+                        },
+                        house: {
+                            type: String,
+                            required: true,
+                            maxLength: 30
+                        },
+                        postcode: {
+                            type: String,
+                            required: true,
+                            maxLength: 30
+                        },
+                        contactInformation: {
+                            phone: {
+                                type: String,
+                                required: false
+                            },
+                            firstName: {
+                                type: String,
+                                required: false,
+                                maxLength: 30
+                            },
+                            lastName: {
+                                type: String,
+                                required: false,
+                                maxLength: 30
+                            }
+                        }
+                    }
+                },
             },
             _id: false
         }
@@ -243,5 +269,102 @@ userSchema.statics.getCustomerShortInfo = async function (userId) {
     }
 }
 
+userSchema.statics.setShippingInformation = async function (userId, {
+    location,
+    city,
+    street,
+    house,
+    postcode,
+    phone,
+    firstName,
+    lastName
+}) {
+    return await this.updateOne({_id: userId}, {
+        $set: {
+            'customerInfo.shipping': {
+                location,
+                city,
+                street,
+                house,
+                postcode,
+                contactInformation: {
+                    phone,
+                    firstName,
+                    lastName
+                }
+            }
+        }
+    })
+}
+
+userSchema.statics.getShippingInformation = async function (userId) {
+    const aggregated = await this
+        .aggregate([
+            {
+                $match: {
+                    _id: new mongoose.Types.ObjectId(userId)
+                }
+            },
+            {
+                $replaceRoot: {
+                    newRoot: '$customerInfo.shipping'
+                }
+            }
+        ])
+    const user = aggregated[0]
+
+    if (!user) throw authUserNotExists
+
+    return {
+        location: user.location,
+        city: user.city,
+        street: user.street,
+        house: user.house,
+        postcode: user.postcode,
+        phone: user.contactInformation?.phone,
+        firstName: user.contactInformation?.firstName,
+        lastName: user.contactInformation?.lastName
+    }
+}
+
+userSchema.statics.addSkuToWishlist = async function (userId, skuId) {
+    const data = await this.updateOne({_id: userId}, {
+        $addToSet: {
+            'customerInfo.wishlist': skuId
+        }
+    })
+    if (!data.modifiedCount) throw interactingSkuAlreadyInWishlist
+
+    return data
+}
+
+
+userSchema.statics.delSkuFromWishlist = async function (userId, skuId) {
+    const data = await this.updateOne({_id: userId}, {
+        $pull: {
+            'customerInfo.wishlist': skuId
+        }
+    })
+    if (!data.modifiedCount) throw interactingNoSkuInWishlist
+
+    return data
+}
+
+userSchema.statics.getWishlist = async function (userId, offset = 0, limit = 30) {
+    const user = await this.findById(userId)
+    if (!user) throw authUserNotExists
+
+    const wishlist = user.customerInfo.wishlist
+
+    const sliced = wishlist.slice(offset, offset + limit)
+
+    return {
+        wishlist: sliced,
+        limit,
+        offset,
+        nextOffset: offset + sliced.length,
+        totalCount: wishlist.length
+    }
+}
 
 module.exports = db.model('user', userSchema, 'users')

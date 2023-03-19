@@ -16,7 +16,7 @@ module.exports = new db.Schema({
     virtuals: {
         url: {
             get() {
-                return `${process.env.HOST}static/images/${this.image}`
+                return process.env.IMAGES_BASE + this.image
             }
         }
     },
