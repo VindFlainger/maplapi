@@ -32,9 +32,13 @@ const schema = new db.Schema({
         rel: 'user',
         required: true
     },
-    status: {
+    deliveryStatus: {
         type: String,
         enum: ['assembling', 'shipping', 'collected']
+    },
+    status: {
+      type: String,
+      enum: ['active', 'rejected', 'resolved']
     },
     totalPrice: {
         type: Number,

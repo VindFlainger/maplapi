@@ -315,7 +315,7 @@ schema.statics.getProductInfo = async function (productId) {
 }
 
 schema.statics.populateSkus = async function (skus) {
-    return   await this.aggregate(
+    return await this.aggregate(
         [
             {
                 $match: {

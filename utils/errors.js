@@ -28,5 +28,7 @@ module.exports.interactionNoPaymentMethod = new RequestError(309, "payment metho
 
 
 module.exports.commerceUnknownProductId = new RequestError(601, "product with such id not exists", 404)
+module.exports.commerceCartNotExists = new RequestError(602, "cart with the received unicId doesn't exists", 404)
+module.exports.commerceCartItemNotExists = new RequestError(603, "cart item with the received skuId doesn't exists", 404)
 
 

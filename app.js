@@ -6,6 +6,7 @@ require('dotenv').config();
 const auth = require('./routes/auth');
 const customer = require('./routes/customer');
 const catalog = require('./routes/catalog');
+const commerce = require('./routes/commerce')
 const data = require('./routes/data');
 const RequestError = require("./utils/RequestError");
 const {generalPathNotFound} = require("./utils/errors");
@@ -30,6 +31,7 @@ app.use('/auth', auth);
 app.use('/customer', customer);
 app.use('/catalog', catalog);
 app.use('/data', data);
+app.use('/commerce', commerce);
 
 app.use(function (req, res, next) {
     next(generalPathNotFound)

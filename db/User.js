@@ -69,6 +69,10 @@ const userSchema = new db.Schema({
                     required: true,
                     enum: ['male', 'female']
                 },
+                cartId: {
+                  type: String,
+                  required: true
+                },
                 avatar: {
                     type: [sizedImage],
                     default: undefined
