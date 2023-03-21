@@ -39,6 +39,7 @@ router.post('/delFromWishlist',
         try {
             await User.delSkuFromWishlist(req.userId, req.body.skuId)
 
+
             res.json(successModified)
         } catch (err) {
             next(err)

@@ -19,7 +19,10 @@ router.get('/getCategories', async (req, res, next) => {
 )
 
 router.post('/getProducts',
-    body(['target', validateFieldIsRequired]),
+    body(['target'])
+        .notEmpty()
+        .withMessage(validateFieldIsRequired)
+    ,
     body('limit')
         .default(30)
         .isInt({max: 30, min: 5})
@@ -98,7 +101,10 @@ router.post('/getProducts',
 
 
 router.get('/getProductInfo',
-    query(['productId', validateFieldIsRequired]),
+    query(['productId'])
+        .notEmpty()
+        .withMessage(validateFieldIsRequired)
+    ,
     query('productId')
         .isMongoId()
     ,
@@ -120,7 +126,10 @@ router.get('/getProductInfo',
 )
 
 router.get('/getReviews',
-    query(['productId', validateFieldIsRequired]),
+    query(['productId'])
+        .notEmpty()
+        .withMessage(validateFieldIsRequired)
+    ,
     query('productId')
         .isMongoId()
     ,
@@ -148,7 +157,6 @@ router.get('/getReviews',
         }
     }
 )
-
 
 
 /*router.get('/test', async (req, res, next) => {

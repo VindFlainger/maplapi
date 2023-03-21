@@ -6,10 +6,8 @@ const Review = require('../../db/Review')
 const Location = require('../../db/Location')
 const {query, body} = require("express-validator");
 const {validationHandler} = require("../../utils/customValidation");
-const {validateFieldIsRequired, interactingNoLocation, interactingNoProduct} = require("../../utils/errors");
+const {validateFieldIsRequired, interactingNoLocation} = require("../../utils/errors");
 const {successModified} = require("../../utils/statuses");
-const dayjs = require("dayjs");
-
 const router = Router()
 
 router.get('/shortData', async (req, res, next) => {
@@ -43,7 +41,10 @@ router.get('/getReviews',
     })
 
 router.post('/setShipping',
-    body(['location', 'city', 'street', 'house', 'postcode', 'fistName', 'lastName', 'phone'], validateFieldIsRequired),
+    body(['location', 'city', 'street', 'house', 'postcode', 'fistName', 'lastName', 'phone'])
+        .notEmpty()
+        .withMessage(validateFieldIsRequired)
+    ,
     body('firstName')
         .isString()
         .isLength({max: 30})
@@ -139,7 +140,10 @@ router.get('/getWishlist',
     })
 
 router.post('/addPaymentMethod',
-    body(['number', 'expire'], validateFieldIsRequired),
+    body(['number', 'expire'])
+        .notEmpty()
+        .withMessage(validateFieldIsRequired)
+    ,
     body('number')
         .isString()
         .custom(v => /^\d{16}$/.test(v))
@@ -165,7 +169,10 @@ router.post('/addPaymentMethod',
     })
 
 router.post('/delPaymentMethod',
-    body(['paymentId'], validateFieldIsRequired),
+    body(['paymentId'])
+        .notEmpty()
+        .withMessage(validateFieldIsRequired)
+    ,
     body('paymentId')
         .isMongoId()
     ,
@@ -181,7 +188,10 @@ router.post('/delPaymentMethod',
     })
 
 router.post('/setDefaultPaymentMethod',
-    body(['paymentId'], validateFieldIsRequired),
+    body(['paymentId'])
+        .notEmpty()
+        .withMessage(validateFieldIsRequired)
+    ,
     body('paymentId')
         .isMongoId()
     ,

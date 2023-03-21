@@ -1,48 +1,10 @@
 const db = require('./index')
 const sizedImage = require('./Schemas/sizedImage')
+const sizing = require('./Schemas/sizing')
 const {commerceUnknownProductId} = require("../utils/errors");
 
 
-const sizingSchema = new db.Schema({
-        size: {
-            type: String,
-            required: true,
-            maxLength: 20
-        },
-        quantity: {
-            type: Number,
-            required: true,
-            max: 999999
-        },
-        ordering: {
-            orders: [
-                {
-                    type: db.Schema.Types.ObjectId,
-                    ref: 'order'
-                }
-            ],
-            count: {
-                type: Number,
-                default: 0
-            }
-        }
-    }, {
-        toJSON: {
-            virtuals: true,
-            versionKey: false
-        },
-        toObject: {
-            virtuals: true,
-            versionKey: false
-        }
-    }
-)
 
-sizingSchema.virtual('totalQuantity')
-    .get(function () {
-            return this.quantity - this.ordering.count
-        }
-    )
 
 const schema = new db.Schema({
         target: {
@@ -100,7 +62,7 @@ const schema = new db.Schema({
                     maxLength: 40
                 },
                 images: [[sizedImage]],
-                sizing: [sizingSchema],
+                sizing: [sizing],
                 pricing: {
                     price: {
                         type: Number,

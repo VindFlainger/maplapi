@@ -37,7 +37,6 @@ app.use(function (req, res, next) {
     next(generalPathNotFound)
 });
 
-// error handler
 app.use(function (err, req, res, next) {
     if (err instanceof RequestError) {
         res.status(err.status).json({
