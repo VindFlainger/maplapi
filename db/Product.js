@@ -1,47 +1,8 @@
 const db = require('./index')
+const {commerceUnknownProductId, commerceSkuNotAvailable, commerceSkuNotExists, commerceSkuSizeNotExists} = require("../utils/errors");
+const sizing = require('./Schemas/sizing')
 const sizedImage = require('./Schemas/sizedImage')
-const {commerceUnknownProductId} = require("../utils/errors");
 
-const sizingSchema = new db.Schema({
-        size: {
-            type: String,
-            required: true,
-            maxLength: 20
-        },
-        quantity: {
-            type: Number,
-            required: true,
-            max: 999999
-        },
-        ordering: {
-            orders: [
-                {
-                    type: db.Schema.Types.ObjectId,
-                    ref: 'order'
-                }
-            ],
-            count: {
-                type: Number,
-                default: 0
-            }
-        }
-    }, {
-        toJSON: {
-            virtuals: true,
-            versionKey: false
-        },
-        toObject: {
-            virtuals: true,
-            versionKey: false
-        }
-    }
-)
-
-sizingSchema.virtual('totalQuantity')
-    .get(function () {
-            return this.quantity - this.ordering.count
-        }
-    )
 
 const schema = new db.Schema({
         target: {
@@ -92,27 +53,25 @@ const schema = new db.Schema({
         },
         skus: [
             {
-                _id: false,
                 color: {
                     type: String,
                     required: true,
                     maxLength: 40
                 },
                 images: [[sizedImage]],
-                sizing: [sizingSchema],
+                sizing: [sizing],
                 pricing: {
                     price: {
                         type: Number,
                         required: true,
-                        max: 999999
                     },
                     sale: {
                         type: Number,
-                        max: 99999
+                        required: false
                     },
                     bonuses: {
                         type: Number,
-                        max: 99999
+                        default: 0
                     }
                 }
             }
@@ -140,16 +99,6 @@ const schema = new db.Schema({
         toJSON: {
             virtuals: true,
             versionKey: false,
-            transform: (doc, ret) => {
-                ret.skus = ret.skus.map(sku => {
-                    sku.sizing = sku.sizing.map(size => {
-                        delete size.ordering
-                        delete size.quantity
-                        return size
-                    })
-                    return sku
-                })
-            }
         },
         toObject: {
             virtuals: true,
@@ -158,79 +107,60 @@ const schema = new db.Schema({
     }
 )
 
-schema.statics.getProducts =
-    async function (
-        offset,
-        limit,
-        {
-            target,
-            category_1,
-            category_2,
-            category_3,
-            minPrice,
-            maxPrice,
-            color,
-            sizes = [],
-            details = []
-        }
-    ) {
-        const categories = {target}
-        const skus = {$elemMatch: {}}
-        let $details = {}
-        if (category_1) categories.category_1 = category_1
-        if (category_2) categories.category_2 = category_2
-        if (category_3) categories.category_3 = category_3
-
-        if (color) {
-            skus.$elemMatch.color = color
-        }
-
-        if (minPrice || maxPrice) {
-            skus.$elemMatch["pricing.price"] = {
-                ...minPrice ? {$gte: minPrice} : {},
-                ...maxPrice ? {$lte: maxPrice} : {}
-            }
-        }
-
-        if (sizes && sizes.length) {
-            skus.$elemMatch.sizing = {
-                $elemMatch: {
-                    size: {
-                        $in: sizes
-                    },
-                    quantity: {
-                        $gt: 0
-                    }
-                }
-            }
-        }
-
-        if (details && details.length) {
-            $details = {}
-            $details.$all = details.map(detail => (
-                {
-                    $elemMatch: {
-                        name: detail.name,
-                        value: {
-                            $all: detail.value
-                        }
-                    }
-                }
-            ))
-        }
-
-        return this.find({
-            ...categories,
-            ...Object.keys(skus.$elemMatch).length ? {skus: {...skus}} : {},
-            ...Object.keys($details).length ? {details: {...$details}} : {}
-        })
-    }
-
 schema.statics.getProductInfo = async function (productId) {
     const productInfo = await this.findById(productId)
     if (!productInfo) throw commerceUnknownProductId
     return productInfo
 }
 
+schema.statics.$decreaseSkuQuantity = async function ({skuId, size, quantity}, session) {
+    const data = await this.updateOne({
+            "skus._id": skuId
+        },
+        {
+            $inc: {
+                "skus.$.sizing.$[sizing].quantity": -quantity
+            }
+        },
+        {
+            arrayFilters: [
+                {
+                    "sizing.size": size,
+                    "sizing.quantity": {
+                        $gte: quantity
+                    }
+                }
+            ]
+        }).session(session)
+
+
+    if (!data.matchedCount) throw commerceSkuNotExists
+    if (!data.modifiedCount) throw commerceSkuNotAvailable
+
+    return data
+}
+
+schema.statics.$increaseSkuQuantity = async function ({skuId, size, quantity}, session){
+    const data = await this.updateOne({
+            "skus._id": skuId
+        },
+        {
+            $inc: {
+                "skus.$.sizing.$[sizing].quantity": quantity
+            }
+        },
+        {
+            arrayFilters: [
+                {
+                    "sizing.size": size
+                }
+            ]
+        }).session(session)
+
+    if (!data.matchedCount) throw commerceSkuNotExists
+    if (!data.modifiedCount) throw commerceSkuSizeNotExists
+
+    return data
+}
 
 module.exports = db.model('product', schema, 'products')

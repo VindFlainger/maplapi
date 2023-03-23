@@ -19,7 +19,10 @@ router.get('/getCategories', async (req, res, next) => {
 )
 
 router.post('/getProducts',
-    body(['target', validateFieldIsRequired]),
+    body(['target'])
+        .notEmpty()
+        .withMessage(validateFieldIsRequired)
+    ,
     body('limit')
         .default(30)
         .isInt({max: 30, min: 5})
@@ -73,7 +76,7 @@ router.post('/getProducts',
     validationHandler,
     async (req, res, next) => {
         try {
-            const products = await Product.getProducts(
+            const products = await Product.getSkus(
                 req.body.offset,
                 req.body.limit,
                 {
@@ -98,7 +101,10 @@ router.post('/getProducts',
 
 
 router.get('/getProductInfo',
-    query(['productId', validateFieldIsRequired]),
+    query(['productId'])
+        .notEmpty()
+        .withMessage(validateFieldIsRequired)
+    ,
     query('productId')
         .isMongoId()
     ,
@@ -120,7 +126,10 @@ router.get('/getProductInfo',
 )
 
 router.get('/getReviews',
-    query(['productId', validateFieldIsRequired]),
+    query(['productId'])
+        .notEmpty()
+        .withMessage(validateFieldIsRequired)
+    ,
     query('productId')
         .isMongoId()
     ,
@@ -128,22 +137,24 @@ router.get('/getReviews',
         .if(query('ownerId').isMongoId())
         .if(query('ownerId').isEmpty())
     ,
+    query('limit')
+        .optional()
+        .isInt({min: 0})
+        .toInt()
+    ,
+    query('offset')
+        .optional()
+        .isInt({min: 0})
+        .toInt()
+    ,
     validationHandler,
     async (req, res, next) => {
         try {
-            const reviews = await Review.getProductReviews(req.query.productId, req.query.ownerId)
+            const reviews = await Review.getProductReviews(req.query.productId, req.query.ownerId, req.query.offset, req.query.limit)
             res.json(reviews)
         } catch (err) {
             next(err)
         }
-    })
-
-
-/*router.get('/test', async (req, res, next) => {
-    const session = await db.startSession()
-    session.startTransaction()
-    await Product.updateOne({'skus.color': 'red'}, {$inc: {'skus.$.pricing.price': 1}}).session(session)
-    await session.abortTransaction()
-    await session.endSession()
-})*/
+    }
+)
 module.exports = router

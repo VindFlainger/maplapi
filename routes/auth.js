@@ -8,7 +8,10 @@ const {validateFieldIsRequired, authNotStrongPassword} = require("../utils/error
 const router = Router()
 
 router.post('/customerRegistration',
-    body(['login', 'password', 'name', 'gender'], validateFieldIsRequired),
+    body(['login', 'password', 'name', 'gender'])
+        .notEmpty()
+        .withMessage(validateFieldIsRequired)
+    ,
     body('login')
         .isEmail()
     ,
@@ -35,7 +38,10 @@ router.post('/customerRegistration',
 )
 
 router.post('/login',
-    body(['login', 'password', 'device', 'ip'], validateFieldIsRequired),
+    body(['login', 'password', 'device'])
+        .notEmpty()
+        .withMessage(validateFieldIsRequired)
+    ,
     body('login')
         .isEmail()
     ,
@@ -66,7 +72,10 @@ router.post('/login',
 )
 
 router.post('/refresh',
-    body(['refreshToken', 'device'], validateFieldIsRequired),
+    body(['refreshToken', 'device'])
+        .notEmpty()
+        .withMessage(validateFieldIsRequired)
+    ,
     body('refreshToken')
         .isLength({max: 1000})
         .isString()
