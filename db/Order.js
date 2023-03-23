@@ -1,9 +1,17 @@
 const db = require('./index')
 const mongoose = require('mongoose')
+const crypto = require("crypto");
+const validator = require('validator')
+const {
+    commerceOrderNotExists,
+    commerceOrderAlreadyCancelled,
+    commerceOrderAlreadyInStatus
+} = require("../utils/errors");
 
 const itemSchema = new db.Schema({
-    skuId: {
+    sku: {
         type: db.Schema.Types.ObjectId,
+        ref: 'sku',
         required: true
     },
     quantity: {
@@ -21,7 +29,7 @@ const itemSchema = new db.Schema({
     bonuses: {
         type: Number,
         default: 0
-    },
+    }
 }, {
     _id: false
 })
@@ -30,19 +38,22 @@ const schema = new db.Schema({
     owner: {
         type: db.Schema.Types.ObjectId,
         rel: 'user',
-        required: true
+        select: false
     },
-    deliveryStatus: {
+    secret: {
         type: String,
-        enum: ['assembling', 'shipping', 'collected']
+        required: true,
+        maxLength: 200
+    },
+    shippingStatus: {
+        type: String,
+        enum: ['assembling', 'shipping', 'collected'],
+        default: 'assembling'
     },
     status: {
-      type: String,
-      enum: ['active', 'rejected', 'resolved']
-    },
-    totalPrice: {
-        type: Number,
-        required: true
+        type: String,
+        enum: ['active', 'rejected', 'resolved', 'cancelled'],
+        default: 'active'
     },
     items: [itemSchema],
     shipping: {
@@ -50,9 +61,21 @@ const schema = new db.Schema({
             type: Number,
             default: 0
         },
-        excepted: {
+        exceptDelivery: {
             type: Date,
             required: true
+        },
+        contact: {
+            name: {
+                type: String,
+                required: true,
+                maxLength: 30
+            },
+            surname: {
+                type: String,
+                required: true,
+                maxLength: 30
+            }
         },
         address: {
             location: {
@@ -86,18 +109,21 @@ const schema = new db.Schema({
         }
     },
     payment: {
+
         cardNumber: {
             type: String,
             required: true,
             validate: {
                 validator: v => /^\d{16}$/.test(v),
                 message: props => `${props.value} is not a valid card number!`
-            }
+            },
+            select: false
         },
         operation: {
             type: String,
             required: true,
-            maxLength: 200
+            maxLength: 200,
+            select: false,
         }
     }
 
@@ -105,126 +131,115 @@ const schema = new db.Schema({
     timestamps: {
         createdAt: true,
         updatedAt: true
+    },
+    toJSON: {
+        versionKey: false
     }
 })
 
-schema.statics.getOrders = async function (userId, offset = 0, limit = 30) {
-    const [orders, totalCount] = await Promise.all(
-        [
-            this.aggregate([
+schema.statics.$createOrder = async function (
+    {
+        items,
+        shippingLocation,
+        shippingCity,
+        shippingStreet,
+        shippingHouse,
+        shippingPostcode,
+        shippingPrice,
+        contactName,
+        contactSurname,
+        owner,
+        cardNumber,
+        operation
+    },
+    session
+) {
+    const secret = crypto.randomBytes(32).toString('hex')
+
+    await this.create([{
+        ...owner ? {owner} : {},
+        secret,
+        items,
+        shipping: {
+            price: shippingPrice,
+            exceptDelivery: new Date(Date.now() + 86000000),
+            address: {
+                location: shippingLocation,
+                city: shippingCity,
+                street: shippingStreet,
+                house: shippingHouse,
+                postcode: shippingPostcode
+            },
+            contact: {
+                name: contactName,
+                surname: contactSurname
+            }
+        },
+        payment: {
+            cardNumber,
+            operation
+        }
+    }], {session})
+
+    return secret
+}
+
+schema.statics.$cancelOrder = async function (orderId, session) {
+    const data = await this.updateOne({
+        _id: orderId
+    }, {
+        $set: {
+            status: 'cancelled'
+        }
+    }).session(session)
+
+    if (!data.matchedCount) throw commerceOrderNotExists
+    if (!data.modifiedCount) throw commerceOrderAlreadyCancelled
+
+    return data
+}
+
+schema.statics.changeOrderStatus = async function (orderId, status) {
+    const data = await this.updateOne({
+        _id: orderId
+    }, {
+        $set: {
+            status: status
+        }
+    })
+
+    if (!data.matchedCount) throw commerceOrderNotExists
+    if (!data.modifiedCount) throw commerceOrderAlreadyInStatus
+
+    return data
+}
+
+schema.statics.changeShippingStatus = async function (orderId, status) {
+    const data = await this.updateOne({
+        _id: orderId
+    }, {
+        $set: {
+            shippingStatus: status
+        }
+    })
+
+    if (!data.matchedCount) throw commerceOrderNotExists
+    if (!data.modifiedCount) throw commerceOrderAlreadyInStatus
+
+    return data
+}
+
+schema.statics.getUserOrders = async function (userId, offset = 0, limit = 30) {
+    const [orders, totalCount] = await Promise.all([
+            this.find(
                 {
-                    $match: {
-                        owner: new mongoose.Types.ObjectId(userId)
-                    }
-                },
-                {
-                    $skip: offset
-                },
-                {
-                    $limit: limit
-                },
-                {
-                    $unwind: {
-                        path: "$items",
-                    },
-                },
-                {
-                    $set: {
-                        item: "$items",
-                    },
-                },
-                {
-                    $unset: ["items"],
-                },
-                {
-                    $lookup: {
-                        from: "products",
-                        localField: "item.skuId",
-                        foreignField: "skus._id",
-                        as: "product",
-                    },
-                },
-                {
-                    $set: {
-                        product: {
-                            $arrayElemAt: ["$product", 0],
-                        },
-                    },
-                },
-                {
-                    $set: {
-                        "item.sku": {
-                            $arrayElemAt: [
-                                {
-                                    $filter: {
-                                        input: "$product.skus",
-                                        as: "sku",
-                                        cond: {
-                                            $eq: ["$$sku._id", "$item.skuId"],
-                                        },
-                                    },
-                                },
-                                0,
-                            ],
-                        },
-                    },
-                },
-                {
-                    $unset: [
-                        "item.sku.sizing",
-                        "item.sku.pricing",
-                    ],
-                },
-                {
-                    $set: {
-                        "item.sku.images": {
-                            $map: {
-                                input: {
-                                    $arrayElemAt: ["$item.sku.images", 0],
-                                },
-                                as: "image",
-                                in: {
-                                    size: "$$image.size",
-                                    url: {
-                                        $concat: ["$$image.image"],
-                                    },
-                                },
-                            },
-                        },
-                        "item.sku.id": "$item.sku._id",
-                        "item.sku.name": "$product.name"
-                    },
-                },
-                {
-                    $group: {
-                        _id: {
-                            _id: "$_id",
-                            id: "$_id",
-                            owner: "$owner",
-                            status: "$status",
-                            totalPrice: "$totalPrice",
-                            shipping: "$shipping",
-                            payment: '$payment'
-                        },
-                        items: {
-                            $push: "$item",
-                        },
-                    },
-                },
-                {
-                    $replaceWith: {
-                        $mergeObjects: [
-                            {
-                                items: "$items",
-                            },
-                            "$_id",
-                        ],
-                    },
-                },
-            ]),
-            this.count({
-                owner: userId
-            }),
+                    owner: userId
+                }
+            )
+                .populate({
+                    path: 'items.sku',
+                    ref: 'sku'
+                })
         ]
     )
 
@@ -233,8 +248,9 @@ schema.statics.getOrders = async function (userId, offset = 0, limit = 30) {
         orders,
         offset,
         limit,
-        nextOffset: offset + orders.length
+        nextOffset: offset + orders.length,
     }
 }
+
 
 module.exports = db.model('order', schema, 'orders')

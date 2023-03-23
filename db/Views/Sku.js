@@ -1,6 +1,7 @@
 const db = require('../index')
 const sizedImage = require("../Schemas/sizedImage");
-const sizing = require("../Schemas/sizing");
+const sizing = require("../Schemas/sizing")
+
 
 const schema = new db.Schema({
     target: {
@@ -73,21 +74,43 @@ const schema = new db.Schema({
     pricing: {
         price: {
             type: Number,
-            required: true,
-            max: 999999
+            required: true
         },
         sale: {
-            type: Number,
-            max: 99999
+            type: Number
         },
         bonuses: {
             type: Number,
-            max: 99999
+            default: 0
         }
     }
 })
 
+schema.statics.receiveSkuData = async function (skuId, size, quantity) {
+    const sku = await this.findOne({
+        _id: skuId,
+        sizing: {
+            $elemMatch: {
+                size: size,
+                quantity: {
+                    $gte: quantity
+                }
+            }
+        }
+    })
+
+    return sku ? {
+        skuId,
+        size,
+        quantity,
+        price: Math.min(sku.pricing.price, sku.pricing.sale ? sku.pricing.sale : Infinity),
+        bonuses: sku.pricing.bonuses || 0
+    } : null
+}
+
+
 const Sku = db.model('sku', schema);
+
 
 Sku.createCollection({
     viewOn: 'products',

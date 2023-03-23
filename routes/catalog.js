@@ -157,13 +157,4 @@ router.get('/getReviews',
         }
     }
 )
-
-
-/*router.get('/test', async (req, res, next) => {
-    const session = await db.startSession()
-    session.startTransaction()
-    await Product.updateOne({'skus.color': 'red'}, {$inc: {'skus.$.pricing.price': 1}}).session(session)
-    await session.abortTransaction()
-    await session.endSession()
-})*/
 module.exports = router

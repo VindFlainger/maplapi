@@ -1,8 +1,13 @@
 const db = require('./index')
+const {interactionLocationNotAvailable} = require("../utils/errors");
 
-const locationSchema = new db.Schema({
+const schema = new db.Schema({
     location: {
         type: String,
+        required: true
+    },
+    shippingPrice: {
+        type: Number,
         required: true
     },
     languages: [
@@ -19,7 +24,7 @@ const locationSchema = new db.Schema({
     ]
 })
 
-locationSchema.statics.getAvailableLocations = async function (language = 'en') {
+schema.statics.getAvailableLocations = async function (language = 'en') {
     return await this.aggregate([
         {
             $match: {
@@ -47,9 +52,19 @@ locationSchema.statics.getAvailableLocations = async function (language = 'en') 
     ])
 }
 
-locationSchema.statics.isExists = async function (location) {
+schema.statics.getShippingPrice = async function (location) {
+    const locationData = this.findOne({
+        location
+    })
+
+    if (!locationData) throw interactionLocationNotAvailable
+
+    return locationData.shippingPrice
+}
+
+schema.statics.isExists = async function (location) {
     return await this.findOne({location})
 }
 
-module.exports = db.model('location', locationSchema, 'locations')
+module.exports = db.model('location', schema, 'locations')
 

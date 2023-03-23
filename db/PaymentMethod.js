@@ -1,6 +1,5 @@
 const db = require('./index')
 const {
-    interactingDefaultMethodExists,
     interactingToManyMethods,
     interactionNoPaymentMethod
 } = require("../utils/errors");
@@ -53,6 +52,7 @@ schema.statics.addMethod = async function (userId, {number, expire, isDefault}) 
             }
         })
     }
+
     if (methods.length >= 5) throw interactingToManyMethods
 
 
@@ -104,4 +104,4 @@ schema.statics.getMethods = async function(userId){
     })
 }
 
-module.exports = db.model('paymentMethod', schema, 'payment.methods')
+module.exports = db.model('paymentMethod', schema, 'paymentMethods')

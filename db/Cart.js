@@ -1,6 +1,6 @@
 const db = require('./index')
 const {commerceCartNotExists, commerceCartItemNotExists} = require("../utils/errors");
-const mongoose = require("mongoose");
+const crypto = require("crypto");
 
 const schema = new db.Schema({
     unicId: {
@@ -26,9 +26,9 @@ const schema = new db.Schema({
     }],
 })
 
-schema.statics.addItem = async function (cardId, skuId, size, quantity) {
+schema.statics.addItem = async function (cartId, skuId, size, quantity) {
     const isExists = await this.exists({
-        unicId: cardId,
+        unicId: cartId,
         'items': {
             $elemMatch: {
                 size,
@@ -40,7 +40,7 @@ schema.statics.addItem = async function (cardId, skuId, size, quantity) {
 
     if (isExists) {
         await this.updateOne({
-            unicId: cardId,
+            unicId: cartId,
             'items': {
                 $elemMatch: {
                     sku: skuId,
@@ -50,7 +50,7 @@ schema.statics.addItem = async function (cardId, skuId, size, quantity) {
         }, {$set: {'items.$.quantity': quantity}})
     } else {
         await this.updateOne({
-            unicId: cardId
+            unicId: cartId
         }, {
             $addToSet: {
                 "items": {
@@ -62,12 +62,12 @@ schema.statics.addItem = async function (cardId, skuId, size, quantity) {
         })
     }
 
-    return await this.getItems(cardId)
+    return await this.getItems(cartId)
 }
 
-schema.statics.delItem = async function (cardId, skuId, size) {
+schema.statics.delItem = async function (cartId, skuId, size) {
     const data = await this.updateOne({
-        unicId: cardId
+        unicId: cartId
     }, {
         $pull: {
             "items": {
@@ -82,56 +82,103 @@ schema.statics.delItem = async function (cardId, skuId, size) {
 
     if (!data.modifiedCount) throw commerceCartItemNotExists
 
-    return await this.getItems(cardId)
+    return await this.getItems(cartId)
 }
 
 schema.statics.getItems = async function (cartId) {
-    const aggregated = await this.aggregate([
-        {
-            $match: {
-                unicId: cartId,
+    // efficiency has left the chat =(
+    // TODO: think about another approach of live updating
+    const aggregated = await this.aggregate(
+        [
+            {
+                $match: {
+                    unicId: cartId,
+                },
             },
-        },
-        {
-            $lookup: {
-                from: "skus",
-                localField: "items.sku",
-                foreignField: "_id",
-                as: "skus",
+            {
+                $lookup: {
+                    from: "skus",
+                    localField: "items.sku",
+                    foreignField: "_id",
+                    as: "skus",
+                },
             },
-        },
-        {
-            $set: {
-                items: {
-                    $filter: {
-                        input: "$items",
-                        as: "item",
-                        cond: {
-                            $in: ["$$item.sku", "$skus._id"],
+            {
+                $set: {
+                    items: {
+                        $filter: {
+                            input: "$items",
+                            as: "item",
+                            cond: {
+                                $in: ["$$item.sku", "$skus._id"],
+                            },
                         },
                     },
                 },
             },
-        },
-        {
-            $set: {
-                items: {
-                    $map: {
-                        input: "$items",
-                        as: "item",
-                        in: {
-                            quantity: "$$item.quantity",
-                            size: "$$item.size",
-                            expires: "$$item.expires",
-                            skuId: "$$item.sku",
-                            sku: {
-                                $arrayElemAt: [
-                                    "$skus",
+            {
+                $set: {
+                    items: {
+                        $map: {
+                            input: "$items",
+                            as: "item",
+                            in: {
+                                quantity: "$$item.quantity",
+                                size: "$$item.size",
+                                expires: "$$item.expires",
+                                skuId: "$$item.sku",
+                                sku: {
+                                    $arrayElemAt: [
+                                        "$skus",
+                                        {
+                                            $indexOfArray: [
+                                                "$skus._id",
+                                                "$$item.sku",
+                                            ],
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            {
+                $set: {
+                    items: {
+                        $map: {
+                            input: "$items",
+                            as: "item",
+                            in: {
+                                $mergeObjects: [
+                                    "$$item",
                                     {
-                                        $indexOfArray: [
-                                            "$skus._id",
-                                            "$$item.sku",
-                                        ],
+                                        sku: {
+                                            $mergeObjects: [
+                                                "$$item.sku",
+                                                {
+                                                    availableQuantity: {
+                                                        $reduce: {
+                                                            input:
+                                                                "$$item.sku.sizing",
+                                                            initialValue: 0,
+                                                            in: {
+                                                                $cond: [
+                                                                    {
+                                                                        $eq: [
+                                                                            "$$this.size",
+                                                                            "$$item.size",
+                                                                        ],
+                                                                    },
+                                                                    "$$this.quantity",
+                                                                    "$$value",
+                                                                ],
+                                                            },
+                                                        },
+                                                    },
+                                                },
+                                            ],
+                                        },
                                     },
                                 ],
                             },
@@ -139,126 +186,70 @@ schema.statics.getItems = async function (cartId) {
                     },
                 },
             },
-        },
-        {
-            $set: {
-                items: {
-                    $map: {
-                        input: "$items",
-                        as: "item",
-                        in: {
-                            $mergeObjects: [
-                                "$$item",
-                                {
-                                    sku: {
-                                        $mergeObjects: [
-                                            "$$item.sku",
-                                            {
-                                                availableQuantity: {
-                                                    $reduce: {
-                                                        input:
-                                                            "$$item.sku.sizing",
-                                                        initialValue: 0,
-                                                        in: {
-                                                            $cond: [
-                                                                {
-                                                                    $eq: [
-                                                                        "$$this.size",
-                                                                        "$$item.size",
-                                                                    ],
-                                                                },
-                                                                {
-                                                                    $add: [
-                                                                        "$$value",
-                                                                        {
-                                                                            $subtract: [
-                                                                                "$$this.quantity",
-                                                                                {
-                                                                                    $size:
-                                                                                        "$$this.orders",
-                                                                                },
-                                                                            ],
-                                                                        },
-                                                                    ],
-                                                                },
-                                                                "$$value",
-                                                            ],
+            {
+                $set: {
+                    items: {
+                        $filter: {
+                            input: "$items",
+                            as: "item",
+                            cond: {
+                                $gt: [
+                                    "$$item.sku.availableQuantity",
+                                    0,
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+            {
+                $set: {
+                    items: {
+                        $map: {
+                            input: "$items",
+                            as: "item",
+                            in: {
+                                $mergeObjects: [
+                                    "$$item",
+                                    {
+                                        quantity: {
+                                            $min: [
+                                                "$$item.quantity",
+                                                "$$item.sku.availableQuantity",
+                                            ],
+                                        },
+                                    },
+                                    {
+                                        sku: {
+                                            $mergeObjects: [
+                                                "$$item.sku",
+                                                {
+                                                    sizing: {
+                                                        $map: {
+                                                            input:
+                                                                "$$item.sku.sizing",
+                                                            as: "size",
+                                                            in: "$$size.size",
                                                         },
                                                     },
                                                 },
-                                            },
-                                        ],
+                                            ],
+                                        },
                                     },
-                                },
-                            ],
+                                ],
+                            },
                         },
                     },
                 },
             },
-        },
-        {
-            $set: {
-                items: {
-                    $filter: {
-                        input: "$items",
-                        as: "item",
-                        cond: {
-                            $gt: [
-                                "$$item.sku.availableQuantity",
-                                0,
-                            ],
-                        },
-                    },
-                },
+            {
+                $unset: [
+                    "skus",
+                    "items.sku.availableQuantity",
+                ],
             },
-        },
-        {
-            $set: {
-                items: {
-                    $map: {
-                        input: "$items",
-                        as: "item",
-                        in: {
-                            $mergeObjects: [
-                                "$$item",
-                                {
-                                    quantity: {
-                                        $min: [
-                                            "$$item.quantity",
-                                            "$$item.sku.availableQuantity",
-                                        ],
-                                    },
-                                },
-                                {
-                                    sku: {
-                                        $mergeObjects: [
-                                            "$$item.sku",
-                                            {
-                                                sizing: {
-                                                    $map: {
-                                                        input:
-                                                            "$$item.sku.sizing",
-                                                        as: "size",
-                                                        in: "$$size.size",
-                                                    },
-                                                },
-                                            },
-                                        ],
-                                    },
-                                },
-                            ],
-                        },
-                    },
-                },
-            },
-        },
-        {
-            $unset: [
-                "skus",
-                "items.sku.availableQuantity",
-            ],
-        },
-    ])
+        ]
+    )
 
     const cart = aggregated[0]
 
@@ -273,6 +264,37 @@ schema.statics.getItems = async function (cartId) {
     })
 
     return cart.items
+}
+
+
+schema.statics.initCart = async function () {
+    const unicId = crypto.randomBytes(32).toString('hex')
+
+    await this.create({
+        unicId,
+        items: []
+    })
+
+    return unicId
+}
+
+// TODO: rewrite with the specialized mongoDB query
+schema.statics.mergeCarts = async function (aCartId, bCartId) {
+    const [aCart, bCart] = await Promise.all([
+        this.findOne({
+            unicId: aCartId
+        }),
+        this.findOne({
+            unicId: bCartId
+        }),
+
+    ])
+
+    if (!aCart || !bCart) throw commerceCartNotExists
+
+    await Promise.all(bCart.items.map(item => this.addItem(aCartId, item.sku, item.size, item.quantity)))
+
+    return await this.getItems(aCartId)
 }
 
 module.exports = db.model('cart', schema, 'carts')

@@ -1,14 +1,50 @@
 const {Router} = require('express')
 const {body, query} = require("express-validator");
-const {validateFieldIsRequired, interactingNoProduct, interactingNoSku} = require("../../utils/errors");
+const {validateFieldIsRequired, interactingNoSku} = require("../../utils/errors");
 const {validationHandler} = require("../../utils/customValidation");
 const Product = require("../../db/Product");
 const User = require("../../db/User");
-const Order = require("../../db/Order");
 const {successModified} = require("../../utils/statuses");
 const mongoose = require("mongoose");
+const Order = require("../../db/Order");
 
 const router = Router()
+
+router.get('/getWishlist',
+    query('limit')
+        .optional()
+        .isInt({max: 50, min: 0})
+        .toInt()
+    ,
+    query('offset')
+        .optional()
+        .isInt({min: 0})
+        .toInt()
+    ,
+    validationHandler,
+    async (req, res, next) => {
+        try {
+            const {
+                wishlist,
+                totalCount,
+                offset,
+                limit,
+                nextOffset
+            } = await User.getWishlist(req.userId, req.query.offset, req.query.limit)
+
+            res.json(
+                {
+                    wishlist,
+                    totalCount,
+                    offset,
+                    limit,
+                    nextOffset
+                }
+            )
+        } catch (err) {
+            next(err)
+        }
+    })
 
 router.post('/addToWishlist',
     body(['skuId', validateFieldIsRequired]),
@@ -47,25 +83,23 @@ router.post('/delFromWishlist',
     })
 
 router.get('/getOrders',
-    query('offset')
-        .optional()
+    body('limit')
+        .default(30)
+        .isInt({max: 30, min: 5})
+        .toInt()
+    ,
+    body('offset')
+        .default(0)
         .isInt({min: 0})
         .toInt()
     ,
-    query('limit')
-        .optional()
-        .isInt({min: 0, max: 50})
-        .toInt()
-    ,
-    validationHandler,
     async (req, res, next) => {
-    try {
-        const orders = await Order.getOrders(req.userId, req.query.offset, req.query.limit)
-
-        res.json(orders)
-    } catch (err) {
-        next(err)
-    }
-})
+        try {
+            const orders = await Order.getUserOrders(req.userId, req.body.offset, req.body.limit)
+            res.json(orders)
+        } catch (err) {
+            next(err)
+        }
+    })
 
 module.exports = router

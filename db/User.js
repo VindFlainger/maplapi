@@ -70,8 +70,8 @@ const userSchema = new db.Schema({
                     enum: ['male', 'female']
                 },
                 cartId: {
-                  type: String,
-                  required: true
+                    type: String,
+                    required: true
                 },
                 avatar: {
                     type: [sizedImage],
@@ -95,7 +95,8 @@ const userSchema = new db.Schema({
                 },
                 wishlist: [
                     {
-                        type: db.Schema.Types.ObjectId
+                        type: db.Schema.Types.ObjectId,
+                        ref: 'sku'
                     }
                 ],
                 shipping: {
@@ -355,19 +356,25 @@ userSchema.statics.delSkuFromWishlist = async function (userId, skuId) {
 }
 
 userSchema.statics.getWishlist = async function (userId, offset = 0, limit = 30) {
+
     const user = await this.findById(userId)
+        .populate({
+            path: 'customerInfo.wishlist',
+            ref: 'sku'
+        })
+
     if (!user) throw authUserNotExists
 
-    const wishlist = user.customerInfo.wishlist
+    const totalCount = user.customerInfo.wishlist.length
 
-    const sliced = wishlist.slice(offset, offset + limit)
+    const wishlist = user.customerInfo.wishlist.slice(offset, offset + limit)
 
     return {
-        wishlist: sliced,
+        wishlist,
         limit,
         offset,
-        nextOffset: offset + sliced.length,
-        totalCount: wishlist.length
+        nextOffset: offset + wishlist.length,
+        totalCount
     }
 }
 

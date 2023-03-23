@@ -4,30 +4,13 @@ const sizing = new db.Schema({
         size: {
             type: String,
             required: true,
-            maxLength: 20
+            maxLength: 30
         },
         quantity: {
             type: Number,
-            required: true,
-            max: 999999
-        },
-        orders: [
-            {
-                type: db.Schema.Types.ObjectId,
-                ref: 'order'
-            }
-        ],
-
-    }, {
-        toJSON: {
-            virtuals: true,
-            versionKey: false
-        },
-        toObject: {
-            virtuals: true,
-            versionKey: false
+            required: true
         }
     }
 )
 
-module.exports
+module.exports = sizing

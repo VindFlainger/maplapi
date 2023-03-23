@@ -1,9 +1,7 @@
 const db = require('./index')
-const sizedImage = require('./Schemas/sizedImage')
+const {commerceUnknownProductId, commerceSkuNotAvailable, commerceSkuNotExists, commerceSkuSizeNotExists} = require("../utils/errors");
 const sizing = require('./Schemas/sizing')
-const {commerceUnknownProductId} = require("../utils/errors");
-
-
+const sizedImage = require('./Schemas/sizedImage')
 
 
 const schema = new db.Schema({
@@ -55,7 +53,6 @@ const schema = new db.Schema({
         },
         skus: [
             {
-                _id: false,
                 color: {
                     type: String,
                     required: true,
@@ -67,15 +64,14 @@ const schema = new db.Schema({
                     price: {
                         type: Number,
                         required: true,
-                        max: 999999
                     },
                     sale: {
                         type: Number,
-                        max: 99999
+                        required: false
                     },
                     bonuses: {
                         type: Number,
-                        max: 99999
+                        default: 0
                     }
                 }
             }
@@ -103,16 +99,6 @@ const schema = new db.Schema({
         toJSON: {
             virtuals: true,
             versionKey: false,
-            transform: (doc, ret) => {
-                ret.skus = ret.skus.map(sku => {
-                    sku.sizing = sku.sizing.map(size => {
-                        delete size.ordering
-                        delete size.quantity
-                        return size
-                    })
-                    return sku
-                })
-            }
         },
         toObject: {
             virtuals: true,
@@ -121,207 +107,60 @@ const schema = new db.Schema({
     }
 )
 
-schema.statics.getSkus =
-    async function (
-        offset,
-        limit,
-        {
-            target,
-            category_1,
-            category_2,
-            category_3,
-            minPrice,
-            maxPrice,
-            color,
-            sizes = [],
-            details = []
-        }
-    ) {
-        const match = {}
-        let $details = {}
-        const $color = {}
-        const $minPrice = {}
-        const $maxPrice = {}
-        const $sizes = {}
-        if (target) match.target = new RegExp(`^${target}$`, 'i')
-        if (category_1) match.category_1 = new RegExp(`^${category_1}$`, 'i')
-        if (category_2) match.category_2 = new RegExp(`^${category_2}$`, 'i')
-        if (category_3) match.category_3 = new RegExp(`^${category_3}$`, 'i')
-
-        if (minPrice) {
-            $minPrice.$or =
-                [
-                    {
-                        "pricing.price": {
-                            $gte: minPrice,
-                        },
-                    },
-                    {
-                        "pricing.sale": {
-                            $gte: minPrice,
-                        },
-                    },
-                ]
-        }
-
-        if (maxPrice) {
-            $maxPrice.$or =
-                [
-                    {
-                        "pricing.price": {
-                            $lte: maxPrice,
-                        },
-                    },
-                    {
-                        "pricing.sale": {
-                            $lte: maxPrice,
-                        },
-                    },
-                ]
-        }
-
-        if (color) {
-            $color.color = color
-        }
-
-        if (sizes.length) {
-            $sizes.size = {$in: sizes}
-        }
-
-
-        if (details && details.length) {
-            $details = {}
-            $details.$all = details.map(detail => (
-                {
-                    $elemMatch: {
-                        name: detail.name,
-                        value: {
-                            $all: detail.value
-                        }
-                    }
-                }
-            ))
-        }
-
-        return this.aggregate([
-                {
-                    $match: {
-                        ...match
-                    },
-                },
-                {
-                    $unwind: {
-                        path: "$skus",
-                    },
-                },
-                {
-                    $set: {
-                        color: "$skus.color",
-                        images: "$skus.images",
-                        sizing: "$skus.sizing",
-                        pricing: "$skus.pricing",
-                        skuId: '$skus._id',
-                        productId: '$_id'
-                    },
-                },
-                {
-                    $set: {
-                        sizing: {
-                            $map: {
-                                input: "$sizing",
-                                as: "size",
-                                in: {
-                                    size: "$$size.size",
-                                    quantity: {
-                                        $subtract: [
-                                            "$$size.quantity",
-                                            {
-                                                $size: "$$size.orders",
-                                            },
-                                        ],
-                                    },
-                                },
-                            },
-                        },
-                    },
-                },
-                {
-                    $unset: ["skus", "_id"],
-                },
-                {
-                    $match: {
-                        ...$color,
-                        ...$minPrice,
-                        ...$maxPrice,
-                        sizing: {
-                            $elemMatch: {
-                                ...$sizes,
-                                quantity: {
-                                    $gt: 0,
-                                },
-                            },
-                        },
-                        details: {
-                            ...$details
-                        },
-                    },
-                },
-            ]
-        )
-    }
-
 schema.statics.getProductInfo = async function (productId) {
     const productInfo = await this.findById(productId)
     if (!productInfo) throw commerceUnknownProductId
     return productInfo
 }
 
-schema.statics.populateSkus = async function (skus) {
-    return await this.aggregate(
-        [
-            {
-                $match: {
-                    "skus._id": {
-                        $in: skus
-                    },
-                },
-            },
-            {
-                $unwind: {
-                    path: "$skus",
-                },
-            },
-            {
-                $match: {
-                    "skus._id": {
-                        $in: skus
-                    },
-                },
-            },
-            {
-                $set: {
-                    color: "$skus.color",
-                    image: {
-                        $map: {
-                            input: {$arrayElemAt: ["$skus.images", 0]},
-                            as: 'img',
-                            in: {
-                                size: '$$img.size',
-                                url: {$concat: [process.env.IMAGES_BASE, "$$img.image"]}
-                            }
-                        }
-                    },
-                    pricing: "$skus.pricing",
-                    skuId: "$skus._id",
-                    productId: "$_id",
-                },
-            },
-            {
-                $unset: ["_id", "skus", "features", "tags", "details"],
-            },
-        ]
-    )
+schema.statics.$decreaseSkuQuantity = async function ({skuId, size, quantity}, session) {
+    const data = await this.updateOne({
+            "skus._id": skuId
+        },
+        {
+            $inc: {
+                "skus.$.sizing.$[sizing].quantity": -quantity
+            }
+        },
+        {
+            arrayFilters: [
+                {
+                    "sizing.size": size,
+                    "sizing.quantity": {
+                        $gte: quantity
+                    }
+                }
+            ]
+        }).session(session)
+
+
+    if (!data.matchedCount) throw commerceSkuNotExists
+    if (!data.modifiedCount) throw commerceSkuNotAvailable
+
+    return data
 }
 
+schema.statics.$increaseSkuQuantity = async function ({skuId, size, quantity}, session){
+    const data = await this.updateOne({
+            "skus._id": skuId
+        },
+        {
+            $inc: {
+                "skus.$.sizing.$[sizing].quantity": quantity
+            }
+        },
+        {
+            arrayFilters: [
+                {
+                    "sizing.size": size
+                }
+            ]
+        }).session(session)
+
+    if (!data.matchedCount) throw commerceSkuNotExists
+    if (!data.modifiedCount) throw commerceSkuSizeNotExists
+
+    return data
+}
 
 module.exports = db.model('product', schema, 'products')
