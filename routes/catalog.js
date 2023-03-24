@@ -1,16 +1,26 @@
 const {Router} = require('express')
 const Category = require('../db/Category')
-const Product = require('../db/Product')
+const Sku = require('../db/Views/Sku')
 const Review = require('../db/Review')
-const {query, body} = require("express-validator");
+const Product = require('../db/Product')
+const {query} = require("express-validator");
 const {validateFieldIsRequired} = require("../utils/errors");
 const {validationHandler} = require("../utils/customValidation");
 
 const router = Router()
 
-router.get('/getCategories', async (req, res, next) => {
+router.get('/getSubCategories',
+    query(['category'])
+        .notEmpty()
+        .withMessage(validateFieldIsRequired)
+    ,
+    query(['category'])
+        .isString()
+    ,
+    validationHandler,
+    async (req, res, next) => {
         try {
-            const categories = await Category.getTree()
+            const categories = await Category.findSubtree(req.query.category)
             res.json(categories)
         } catch (err) {
             next(err)
@@ -18,89 +28,184 @@ router.get('/getCategories', async (req, res, next) => {
     }
 )
 
-router.post('/getProducts',
-    body(['target'])
+
+router.get('/getProducts',
+    query(['category'])
         .notEmpty()
         .withMessage(validateFieldIsRequired)
     ,
-    body('limit')
+    query(['category'])
+        .isString()
+    ,
+    query('limit')
         .default(30)
         .isInt({max: 30, min: 5})
         .toInt()
     ,
-    body('offset')
+    query('offset')
         .default(0)
         .isInt({min: 0})
         .toInt()
     ,
-    body('target')
-        .isString()
-    ,
-    body(['category_1', 'category_2', 'category_3', 'color'])
-        .optional()
-        .isString()
-    ,
-    body('minPrice')
+    query('minPrice')
         .optional()
         .isInt({min: 0})
         .toInt()
     ,
-    body('maxPrice')
+    query('maxPrice')
         .optional()
         .isInt({min: 0})
         .toInt()
     ,
-    body('sizes')
+    query('sizes')
         .optional()
         .isArray({max: 20})
         .toArray()
     ,
-    body('details')
+    query('details')
         .optional()
         .isArray({max: 20})
         .toArray()
     ,
-    body('details.*')
+    query('details.*')
         .isObject()
     ,
-    body('details.*.name')
+    query('details.*.name')
         .isString()
     ,
-    body('details.*.value')
+    query('details.*.value')
         .isArray()
         .toArray()
     ,
-    body('details.*.value.*')
+    query('details.*.value.*')
         .isString()
     ,
     validationHandler,
     async (req, res, next) => {
         try {
-            const products = await Product.getSkus(
-                req.body.offset,
-                req.body.limit,
+            const categories = await Category.findSubtree(req.query.category)
+            categories.push(req.query.category)
+
+            const skuInfo = await Sku.findSkus(
                 {
-                    target: req.body.target,
-                    category_1: req.body.category_1,
-                    category_2: req.body.category_2,
-                    category_3: req.body.category_3,
-                    color: req.body.color,
-                    minPrice: req.body.minPrice,
-                    maxPrice: req.body.maxPrice,
-                    sizes: req.body.sizes,
-                    details: req.body.details
-                }
+                    categories: categories,
+                    color: req.query.color,
+                    minPrice: req.query.minPrice,
+                    maxPrice: req.query.maxPrice,
+                    sizes: req.query.sizes,
+                    details: req.query.details
+                },
+                req.query.offset,
+                req.query.limit
             )
-            res.json(products)
+            res.json(skuInfo)
         } catch (err) {
             next(err)
         }
-
     }
 )
 
 
-router.get('/getProductInfo',
+router.get('/getFilters',
+    query(['category'])
+        .notEmpty()
+        .withMessage(validateFieldIsRequired)
+    ,
+    query(['category'])
+        .isString()
+    ,
+    validationHandler,
+    async (req, res, next) => {
+        try {
+            const categories = await Category.findSubtree(req.query.category)
+            categories.push(req.query.category)
+
+            const filters = await Sku.getFilters(categories)
+
+            res.json(filters)
+        } catch (err) {
+            next(err)
+        }
+    }
+)
+
+
+router.get('/getCount',
+    query(['category'])
+        .notEmpty()
+        .withMessage(validateFieldIsRequired)
+    ,
+    query(['category'])
+        .isString()
+    ,
+    query('limit')
+        .default(30)
+        .isInt({max: 30, min: 5})
+        .toInt()
+    ,
+    query('offset')
+        .default(0)
+        .isInt({min: 0})
+        .toInt()
+    ,
+    query('minPrice')
+        .optional()
+        .isInt({min: 0})
+        .toInt()
+    ,
+    query('maxPrice')
+        .optional()
+        .isInt({min: 0})
+        .toInt()
+    ,
+    query('sizes')
+        .optional()
+        .isArray({max: 20})
+        .toArray()
+    ,
+    query('details')
+        .optional()
+        .isArray({max: 20})
+        .toArray()
+    ,
+    query('details.*')
+        .isObject()
+    ,
+    query('details.*.name')
+        .isString()
+    ,
+    query('details.*.value')
+        .isArray()
+        .toArray()
+    ,
+    query('details.*.value.*')
+        .isString()
+    ,
+    validationHandler,
+    async (req, res, next) => {
+        try {
+            const categories = await Category.findSubtree(req.query.category)
+            categories.push(req.query.category)
+
+            const count = await Sku.getCount(
+                {
+                    categories: categories,
+                    color: req.query.color,
+                    minPrice: req.query.minPrice,
+                    maxPrice: req.query.maxPrice,
+                    sizes: req.query.sizes,
+                    details: req.query.details
+                },
+            )
+
+            res.json(count)
+        } catch (err) {
+            next(err)
+        }
+    }
+)
+
+router.get('/getProduct',
     query(['productId'])
         .notEmpty()
         .withMessage(validateFieldIsRequired)
@@ -111,14 +216,9 @@ router.get('/getProductInfo',
     validationHandler,
     async (req, res, next) => {
         try {
-            const [productInfo, reviews] = await
-                Promise.all(
-                    [
-                        Product.getProductInfo(req.query.productId),
-                        Review.getProductReviews(req.query.productId)
-                    ]
-                )
-            res.json({...productInfo.toObject(), reviews})
+            const productInfo = await Product.getProductInfo(req.query.productId)
+
+            res.json(productInfo)
         } catch (err) {
             next(err)
         }
@@ -158,3 +258,4 @@ router.get('/getReviews',
     }
 )
 module.exports = router
+

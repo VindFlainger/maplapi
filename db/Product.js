@@ -5,25 +5,9 @@ const sizedImage = require('./Schemas/sizedImage')
 
 
 const schema = new db.Schema({
-        target: {
+        category: {
             type: String,
-            required: true,
-            select: false
-        },
-        category_1: {
-            type: String,
-            required: false,
-            select: false
-        },
-        category_2: {
-            type: String,
-            required: false,
-            select: false
-        },
-        category_3: {
-            type: String,
-            required: false,
-            select: false
+            required: true
         },
         name: {
             type: String,
