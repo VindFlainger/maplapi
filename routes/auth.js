@@ -1,5 +1,6 @@
 const {Router} = require("express");
 const User = require("../db/User");
+const Cart = require("../db/Cart");
 const {successModified} = require("../utils/statuses");
 const {body} = require("express-validator");
 const {validationHandler} = require("../utils/customValidation");
@@ -29,7 +30,8 @@ router.post('/customerRegistration',
     validationHandler,
     async (req, res, next) => {
         try {
-            await User.customerRegistration(req.body.login, req.body.password, req.body.name, req.body.gender)
+            const cartId = await Cart.initCart()
+            await User.customerRegistration(req.body.login, req.body.password, req.body.name, req.body.gender, cartId)
             res.json(successModified)
         } catch (err) {
             next(err)

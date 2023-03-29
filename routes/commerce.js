@@ -43,6 +43,37 @@ router.post('/delCartItem',
     }
 )
 
+router.post('/editCartItem',
+    body(['cartId', 'skuId', 'size'])
+        .notEmpty()
+        .withMessage(validateFieldIsRequired)
+    ,
+    body('cartId')
+        .isLength({max: 64})
+    ,
+    body('skuId')
+        .isMongoId()
+    ,
+    body('size')
+        .isString()
+    ,
+    body('quantity')
+        .default(1)
+        .isInt({min: 1})
+        .toInt()
+    ,
+    validationHandler,
+    async (req, res, next) => {
+        try {
+            const items = await Cart.editItem(req.body.cartId, req.body.skuId, req.body.size, req.body.quantity)
+            res.json(items)
+
+        } catch (err) {
+            next(err)
+        }
+    }
+)
+
 router.get('/getCartItems',
     query(['cartId'])
         .notEmpty()

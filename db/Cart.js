@@ -26,6 +26,32 @@ const schema = new db.Schema({
     }],
 })
 
+schema.statics.editItem = async function (cartId, skuId, size, quantity) {
+    await this.updateOne({
+        unicId: cartId,
+    }, {
+        $pull: {
+            items: {
+                sku: skuId
+            }
+        }
+    })
+
+    await this.updateOne({
+        unicId: cartId,
+    }, {
+        $addToSet: {
+            items: {
+                sku: skuId,
+                size,
+                quantity,
+            }
+        }
+    })
+
+    return await this.getItems(cartId)
+}
+
 schema.statics.addItem = async function (cartId, skuId, size, quantity) {
     const isExists = await this.exists({
         unicId: cartId,
@@ -65,7 +91,7 @@ schema.statics.addItem = async function (cartId, skuId, size, quantity) {
     return await this.getItems(cartId)
 }
 
-schema.statics.delItem = async function (cartId, skuId, size) {
+schema.statics.delItem = async function (cartId, skuId, size, quantity) {
     const data = await this.updateOne({
         unicId: cartId
     }, {
@@ -73,7 +99,6 @@ schema.statics.delItem = async function (cartId, skuId, size) {
             "items": {
                 sku: skuId,
                 size
-
             }
         }
     })
@@ -176,6 +201,24 @@ schema.statics.getItems = async function (cartId) {
                                                             },
                                                         },
                                                     },
+                                                    images: {
+                                                        $map: {
+                                                            input: '$$item.sku.images',
+                                                            as: 'images',
+                                                            in: {
+                                                                $map: {
+                                                                    input: '$$images',
+                                                                    as: 'image',
+                                                                    in: {
+                                                                        $mergeObjects: [
+                                                                            '$$image',
+                                                                            {url: {$concat: [process.env.IMAGES_BASE, '$$image.image']}}
+                                                                        ]
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
                                                 },
                                             ],
                                         },

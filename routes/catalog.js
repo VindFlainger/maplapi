@@ -28,6 +28,15 @@ router.get('/getSubCategories',
     }
 )
 
+router.get('/getCategoriesToRoot', async (req, res, next)=>{
+    try{
+        const tree = await Category.findTreeToRoot(req.query.category)
+        res.json(tree)
+    }catch (err){
+        next(err)
+    }
+})
+
 
 router.get('/getProducts',
     query(['category'])

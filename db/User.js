@@ -57,7 +57,7 @@ const userSchema = new db.Schema({
             required: true,
             enum: ['vendor', 'customer', 'admin']
         },
-        customerInfo: {
+        customer_info: {
             type: {
                 name: {
                     type: String,
@@ -69,7 +69,7 @@ const userSchema = new db.Schema({
                     required: true,
                     enum: ['male', 'female']
                 },
-                cartId: {
+                cart_id: {
                     type: String,
                     required: true
                 },
@@ -161,7 +161,7 @@ userSchema.statics.checkUserExists = function (login) {
     return this.exists({'auth.login': login})
 }
 
-userSchema.statics.registration = async function (login, password, role) {
+userSchema.statics.registration = async function (login, password, role, cardId) {
     const isUserExists = await this.checkUserExists(login)
     if (isUserExists) throw authUserAlreadyExists
 
@@ -171,7 +171,8 @@ userSchema.statics.registration = async function (login, password, role) {
         role,
         auth: {
             login,
-            password: hash
+            password: hash,
+            card: cardId
         }
     })
 }
@@ -254,23 +255,25 @@ userSchema.statics.refreshToken = async function (refreshToken, device, ip) {
     return await this.$getNewKeys(user.auth.login, user._id, device, ip, user.role)
 }
 
-userSchema.statics.getCustomerShortInfo = async function (userId) {
+userSchema.statics.getCustomerData = async function (userId) {
     const info = await
         this.findById(userId)
             .select({
                     'auth.login': 1,
-                    'customerInfo.name': 1,
-                    'customerInfo.gender': 1,
-                    'customerInfo.localization': 1,
+                    'customer_info.name': 1,
+                    'customer_info.gender': 1,
+                    'customer_info.localization': 1,
+                    'customer_info.cart_id': 1
                 }
             )
     if (!info) throw authUserNotExists
 
     return {
         login: info.auth.login,
-        name: info.customerInfo.name,
-        gender: info.customerInfo.gender,
-        localization: info.customerInfo.localization,
+        name: info.customer_info.name,
+        gender: info.customer_info.gender,
+        localization: info.customer_info.localization,
+        cartId: info.customer_info.cart_id
     }
 }
 
@@ -312,7 +315,7 @@ userSchema.statics.getShippingInformation = async function (userId) {
             },
             {
                 $replaceRoot: {
-                    newRoot: '$customerInfo.shipping'
+                    newRoot: '$customer_info.shipping'
                 }
             }
         ])
